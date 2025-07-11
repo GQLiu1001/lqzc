@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.OrderInfoMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.OrderInfo">
+            <id property="id" column="id" />
+            <result property="orderNo" column="order_no" />
+            <result property="customerPhone" column="customer_phone" />
+            <result property="totalPrice" column="total_price" />
+            <result property="dispatchStatus" column="dispatch_status" />
+            <result property="driverId" column="driver_id" />
+            <result property="deliveryAddress" column="delivery_address" />
+            <result property="deliveryFee" column="delivery_fee" />
+            <result property="goodsWeight" column="goods_weight" />
+            <result property="remark" column="remark" />
+            <result property="version" column="version" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,order_no,customer_phone,total_price,dispatch_status,driver_id,
+        delivery_address,delivery_fee,goods_weight,remark,version,
+        create_time,update_time
+    </sql>
+
+    <select id="getOrderList" resultType="com.lqzc.common.records.OrderInfoRecords">
+        SELECT
+        info.*,
+        COUNT(item.id) AS subOrderCount
+        FROM
+        order_info info
+        LEFT JOIN
+        order_detail item ON info.id = item.order_id
+        WHERE 1=1
+        <if test="customerPhone != null">
+            AND info.customer_phone = #{customerPhone}
+        </if>
+        <if test="startStr != null and endStr != null">
+            AND info.update_time BETWEEN #{startStr} AND #{endStr}
+        </if>
+        <if test="startStr == null and endStr != null">
+            AND info.update_time &lt; #{endStr}
+        </if>
+        <if test="startStr != null and endStr == null">
+            AND info.update_time &gt; #{startStr}
+        </if>
+        GROUP BY
+        info.id
+        ORDER BY
+        info.id DESC
+    </select>
+    <select id="fetchDispatchOrder" resultType="com.lqzc.common.records.DispatchOrderFetchRecords">
+        select *
+        from order_info info
+        where info.dispatch_status = #{status}
+        <if test="customerPhone != null">
+            AND info.customer_phone = #{customerPhone}
+        </if>
+        <if test="startStr != null and endStr != null">
+            AND info.update_time BETWEEN #{startStr} AND #{endStr}
+        </if>
+        <if test="startStr == null and endStr != null">
+            AND info.update_time &lt; #{endStr}
+        </if>
+        <if test="startStr != null and endStr == null">
+            AND info.update_time &gt; #{startStr}
+        </if>
+        order by id desc
+    </select>
+    <select id="fetchDispatchOrder4Driver" resultType="com.lqzc.common.records.DispatchOrderFetchRecords">
+        select * from order_info where dispatch_status = #{status} order by id desc
+    </select>
+
+
+</mapper>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.OrderDetailMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.OrderDetail">
+            <id property="id" column="id" />
+            <result property="orderId" column="order_id" />
+            <result property="itemId" column="item_id" />
+            <result property="amount" column="amount" />
+            <result property="subtotalPrice" column="subtotal_price" />
+            <result property="version" column="version" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,order_id,item_id,amount,subtotal_price,version,
+        create_time,update_time
+    </sql>
+
+    <select id="getTopSalesTrend" resultType="com.lqzc.common.resp.SalesTrendResp">
+        select
+            SUM(subtotal_price) as total_price,
+            SUM(amount) as total_amount
+        from
+            order_detail
+        where
+            DATE_FORMAT(create_time, '%Y-%m') = #{date}
+    </select>
+</mapper>

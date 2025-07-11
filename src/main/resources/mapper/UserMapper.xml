@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.User">
+            <id property="id" column="id" />
+            <result property="username" column="username" />
+            <result property="password" column="password" />
+            <result property="phone" column="phone" />
+            <result property="avatar" column="avatar" />
+            <result property="email" column="email" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,username,password,phone,avatar,email,
+        create_time,update_time
+    </sql>
+
+    <select id="getAdminEmail" resultType="java.lang.String">
+        SELECT u.email
+        FROM user u
+                 JOIN user_role ur ON u.id = ur.user_id
+                 JOIN role r ON ur.role_id = r.id
+        WHERE r.role_key = 'admin'
+            LIMIT 1
+    </select>
+</mapper>

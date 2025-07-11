@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.DriverMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.Driver">
+            <id property="id" column="id" />
+            <result property="name" column="name" />
+            <result property="phone" column="phone" />
+            <result property="avatar" column="avatar" />
+            <result property="auditStatus" column="audit_status" />
+            <result property="workStatus" column="work_status" />
+            <result property="openid" column="openid" />
+            <result property="money" column="money" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,name,phone,avatar,audit_status,work_status,
+        openid,money,create_time,update_time
+    </sql>
+</mapper>

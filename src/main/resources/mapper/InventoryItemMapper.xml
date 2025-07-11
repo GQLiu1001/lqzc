@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.InventoryItemMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.InventoryItem">
+            <id property="id" column="id" />
+            <result property="model" column="model" />
+            <result property="manufacturer" column="manufacturer" />
+            <result property="specification" column="specification" />
+            <result property="surface" column="surface" />
+            <result property="category" column="category" />
+            <result property="warehouseNum" column="warehouse_num" />
+            <result property="totalAmount" column="total_amount" />
+            <result property="unitPerBox" column="unit_per_box" />
+            <result property="picture" column="picture" />
+            <result property="sellingPrice" column="selling_price" />
+            <result property="remark" column="remark" />
+            <result property="version" column="version" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,model,manufacturer,specification,surface,category,
+        warehouse_num,total_amount,unit_per_box,picture,selling_price,
+        remark,version,create_time,update_time
+    </sql>
+
+    <update id="itemReversal">
+        UPDATE inventory_item
+        <set>
+            update_time = NOW(),
+            <if test="operationType == 3">
+                warehouse_num = #{sourceWarehouse},
+            </if>
+            <if test="operationType == 2">
+                total_amount = total_amount + #{quantityChange},
+            </if>
+            <if test="operationType == 1">
+                total_amount = total_amount - #{quantityChange},
+            </if>
+        </set>
+        WHERE id = #{inventoryItemId}
+    </update>
+    <select id="getList" resultType="com.lqzc.common.domain.InventoryItem">
+        SELECT
+        *
+        FROM inventory_item
+        <if test="category != null || surface != null">
+            WHERE 1=1
+            <if test="category != null">
+                AND category = #{category}
+            </if>
+            <if test="surface != null">
+                AND surface = #{surface}
+            </if>
+        </if>
+    </select>
+
+    <select id="getItemsList" resultType="com.lqzc.common.records.MallItemsListRecord">
+        SELECT
+        *
+        FROM inventory_item
+        <if test="category != null || surface != null">
+            WHERE 1=1
+            <if test="category != null">
+                AND category = #{category}
+            </if>
+            <if test="surface != null">
+                AND surface = #{surface}
+            </if>
+        </if>
+    </select>
+</mapper>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.InventoryLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.InventoryLog">
+            <id property="id" column="id" />
+            <result property="itemId" column="item_id" />
+            <result property="logType" column="log_type" />
+            <result property="amountChange" column="amount_change" />
+            <result property="sourceWarehouse" column="source_warehouse" />
+            <result property="targetWarehouse" column="target_warehouse" />
+            <result property="remark" column="remark" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,item_id,log_type,amount_change,source_warehouse,target_warehouse,
+        remark,create_time,update_time
+    </sql>
+
+    <select id="getLog" resultType="com.lqzc.common.domain.InventoryLog">
+        SELECT *
+        FROM inventory_log
+        WHERE log_type = #{logType}
+        <if test="startTime != null and endTime != null">
+            AND update_time BETWEEN #{startTime} AND #{endTime}
+        </if>
+        <if test="startTime != null and endTime == null">
+            AND update_time &gt;= #{startTime}
+        </if>
+        <if test="startTime == null and endTime != null">
+            AND update_time &lt;= #{endTime}
+        </if>
+        order by
+        inventory_log.id DESC
+    </select>
+</mapper>
