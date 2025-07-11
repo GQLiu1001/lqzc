@@ -2,6 +2,7 @@ package com.lqzc.config;
 
 import com.lqzc.common.constant.RedisConstant;
 import com.lqzc.common.domain.UserRole;
+import com.lqzc.config.interceptor.AbstractAuthInterceptor;
 import com.lqzc.utils.UserContextHolder;
 import com.lqzc.mapper.UserRoleMapper;
 import jakarta.annotation.Resource;
@@ -11,55 +12,36 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.util.Set;
+
 @Component
-public class ConsulInterceptor implements HandlerInterceptor {
+public class ConsulInterceptor extends AbstractAuthInterceptor {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private UserRoleMapper userRoleMapper;
-    // 在请求处理之前执行
+
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // 从请求头中获取 Authorization
-        String authHeader = request.getHeader("Authorization");
-        // 检查 Authorization 是否存在且格式正确
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            // 提取 token
-            String token = authHeader.substring("Bearer ".length()).trim();
-            String userId = stringRedisTemplate.opsForValue().get(RedisConstant.USER_TOKEN + token);
-            if (userId != null ) {
-                UserRole userRole = userRoleMapper.selectById(userId);
-                if (userRole.getRoleId() != null && this.roleValidator(userRole.getRoleId())) {
-                    //id和roleId都存在 存入UserContextHolder
-                    UserContextHolder.setUserId(Long.valueOf(userId));
-                    UserContextHolder.setUserRoleId(userRole.getRoleId());
-                    UserContextHolder.setUserToken(token);
-                    return true;
-                }
-            } else {
-                // token 无效，返回 401 未授权
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                return false;
-            }
+    protected boolean doAuth(String token, HttpServletRequest request) {
+        String userId = stringRedisTemplate.opsForValue().get(RedisConstant.USER_TOKEN + token);
+        if (userId == null) {
+            return false;
         }
 
-        // Authorization 头缺失或格式错误，返回 401 未授权
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        System.out.println("头缺失");
-        return false;
+        UserRole userRole = userRoleMapper.selectById(userId);
+        if (userRole == null || userRole.getRoleId() == null || !this.roleValidator(userRole.getRoleId())) {
+            return false;
+        }
+
+        // 存入UserContextHolder
+        UserContextHolder.setUserId(Long.valueOf(userId));
+        UserContextHolder.setUserRoleId(userRole.getRoleId());
+        UserContextHolder.setUserToken(token);
+        return true;
     }
 
+    // 角色验证逻辑
     private boolean roleValidator(Long roleId) {
-        return roleId ==1 || roleId == 2;
+        return Set.of(1L, 2L).contains(roleId);
     }
-
-    // 在请求处理完成后执行
-    @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
-                                Object handler, Exception ex) {
-        // 清理 ThreadLocal，防止内存泄漏
-        UserContextHolder.clear();
-    }
-
-
 }
