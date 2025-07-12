@@ -31,6 +31,7 @@ public class InventoryController {
                               @Parameter(description = "商品表面") @RequestParam(required = false) String surface) {
         IPage<InventoryItem> page = new Page<>(current, size);
         IPage<InventoryItem> record = inventoryItemService.getList(page,category,surface);
+        System.out.println("record = " + record);
         ItemsListResp resp = new ItemsListResp();
         resp.setRecords(record.getRecords());
         resp.setTotal(record.getTotal());
