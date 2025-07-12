@@ -1,0 +1,136 @@
+# LQZC 瓷砖商城管理系统配置文件示例
+# 请复制此文件为 application.yaml 或 application-dev.yaml，并填入实际配置值
+
+spring:
+  # 数据库配置
+  datasource:
+    url: jdbc:mysql://localhost:3306/lqzc_db?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: your_mysql_username
+    password: your_mysql_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  data:
+    # Redis配置
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      password: your_redis_password  # 如果Redis没有密码，可以删除此行
+    
+    # MongoDB配置
+    mongodb:
+      host: localhost
+      port: 27017
+      database: lqzcbase
+      # username: your_mongodb_username  # 如果需要认证，取消注释并填入用户名
+      # password: your_mongodb_password  # 如果需要认证，取消注释并填入密码
+  
+  # RabbitMQ配置
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: auto # 消息处理成功后自动确认
+  
+  # 邮件服务配置
+  mail:
+    host: smtp.163.com  # 邮件服务器地址，根据邮箱提供商修改
+    port: 465 # 或 25，根据邮箱提供商要求修改
+    username: your_email@example.com
+    password: your_email_auth_code # 注意：这里是授权码，不是邮箱密码
+    properties:
+      mail:
+        smtp:
+          ssl:
+            enable: true # 使用SSL
+          auth: true
+  
+  # JSON序列化配置
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  
+  # 阿里云通义千问AI配置
+  ai:
+    dashscope:
+      api-key: your_dashscope_api_key  # 阿里云DashScope API密钥
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      chat:
+        options:
+          model: qwen-max-latest
+
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true # 开启驼峰命名转换
+
+# Cloudflare R2存储配置
+cloudflare:
+  r2:
+    # 存储桶名称
+    bucket-name: your_bucket_name
+    # R2 API端点（基础URL，不包含存储桶名称）
+    endpoint: https://your_account_id.r2.cloudflarestorage.com
+    # 访问密钥ID
+    access-key-id: your_access_key_id
+    # 机密访问密钥
+    secret-access-key: your_secret_access_key
+    # 公共访问URL（需要在Cloudflare控制台设置自定义域名）
+    public-url: https://your_custom_domain.r2.dev
+
+# 微信小程序配置
+wx:
+  miniapp:
+    appId: your_wechat_app_id
+    secret: your_wechat_app_secret
+
+# 腾讯地图API配置
+tencent:
+  map:
+    key: your_tencent_map_api_key
+
+# JWT配置
+jwt:
+  secret: "your-super-secret-key-that-is-at-least-32-characters-long"  # 请使用强密码
+  expiration:
+    anonymous: 30d  # 匿名用户token过期时间
+
+# 服务器配置
+server:
+  port: 8001  # 应用端口
+
+# 应用配置
+spring:
+  application:
+    name: lqzc-management-system
+  profiles:
+    active: dev  # 激活的配置文件，可选: dev, prod
+
+# 日志配置
+logging:
+  level:
+    com.lqzc: DEBUG  # 开发环境使用DEBUG级别
+    org.springframework.web: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Swagger文档配置
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+# 管理端点配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
