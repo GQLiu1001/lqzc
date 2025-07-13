@@ -158,6 +158,8 @@ lqzc/
 │   ├── application.yaml     # 主配置文件
 │   ├── application-dev.yaml # 开发环境配置
 │   └── application-prod.yaml# 生产环境配置
+├── api/
+│   ├── api-doc.md 
 └── sql/
     └── lqzc_db.sql          # 数据库脚本
 ```
