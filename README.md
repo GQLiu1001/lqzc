@@ -3,7 +3,7 @@
   <p>一个现代化的瓷砖商城全栈管理系统，集成库存管理、订单处理、智能派送和AI客服功能</p>
   
   <p>
-    <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square&logo=openjdk" alt="Java">
+    <img src="https://img.shields.io/badge/Java-17-orange?style=flat-square&logo=openjdk" alt="Java">
     <img src="https://img.shields.io/badge/Spring%20Boot-3.3.3-brightgreen?style=flat-square&logo=spring" alt="Spring Boot">
     <img src="https://img.shields.io/badge/MySQL-8.0-blue?style=flat-square&logo=mysql" alt="MySQL">
     <img src="https://img.shields.io/badge/Redis-7.0-red?style=flat-square&logo=redis" alt="Redis">
