@@ -3,7 +3,7 @@
   <p>一个现代化的瓷砖商城全栈管理系统，集成库存管理、订单处理、智能派送和AI客服功能</p>
   
   <p>
-    <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square&logo=openjdk" alt="Java">
+    <img src="https://img.shields.io/badge/Java-17-orange?style=flat-square&logo=openjdk" alt="Java">
     <img src="https://img.shields.io/badge/Spring%20Boot-3.3.3-brightgreen?style=flat-square&logo=spring" alt="Spring Boot">
     <img src="https://img.shields.io/badge/MySQL-8.0-blue?style=flat-square&logo=mysql" alt="MySQL">
     <img src="https://img.shields.io/badge/Redis-7.0-red?style=flat-square&logo=redis" alt="Redis">
@@ -84,7 +84,7 @@ LQZC 瓷砖商城管理系统是一个功能完整的企业级瓷砖销售管理
 ## 🚀 快速开始
 
 ### 环境要求
-- Java 21+
+- Java 17+
 - MySQL 8.0+
 - Redis 7.0+
 - MongoDB 6.0+
@@ -158,6 +158,8 @@ lqzc/
 │   ├── application.yaml     # 主配置文件
 │   ├── application-dev.yaml # 开发环境配置
 │   └── application-prod.yaml# 生产环境配置
+├── api/
+│   └── api-doc.md 
 └── sql/
     └── lqzc_db.sql          # 数据库脚本
 ```

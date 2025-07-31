@@ -27,7 +27,7 @@
         <url/>
     </scm>
     <properties>
-        <java.version>21</java.version>
+        <java.version>17</java.version>
         <aws-java-sdk-s3>1.12.550</aws-java-sdk-s3>
         <springdoc-openapi-starter-webmvc-ui>2.6.0</springdoc-openapi-starter-webmvc-ui>
         <java-jwt>4.5.0</java-jwt>
