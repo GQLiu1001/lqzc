@@ -19,8 +19,8 @@ public class RedissonConfig {
     public RedissonClient redissonClient() {
         Config config = new Config();
         config.useSingleServer()
-                .setAddress(redisProps.getAddress())  // 动态获取
-                .setPassword(redisProps.getPassword());
+                .setAddress(redisProps.getAddress());  // 动态获取
+//                .setPassword(redisProps.getPassword());
         config.setCodec(new JsonJacksonCodec());
         return Redisson.create(config);
     }
