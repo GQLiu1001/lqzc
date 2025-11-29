@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    private final MallInterceptor mallInterceptor;
+//    private final MallInterceptor mallInterceptor;
     private final ConsulInterceptor consulInterceptor;
     private final DriverInterceptor driverInterceptor;
 
@@ -33,14 +33,14 @@ public class WebConfig implements WebMvcConfigurer {
                         "/user/reset",
                         "/swagger-ui/**");  // 拦截所有请求
 
-        registry.addInterceptor(mallInterceptor)
-                .addPathPatterns(
-                        "/mall/**"
-                )
-                .excludePathPatterns(
-                        "/mall/auth/**",
-                        "/mall/selection/**"
-                );
+//        registry.addInterceptor(mallInterceptor)
+//                .addPathPatterns(
+//                        "/mall/**"
+//                )
+//                .excludePathPatterns(
+//                        "/mall/auth/**",
+//                        "/mall/selection/**"
+//                );
 
         registry.addInterceptor(driverInterceptor)
                 .addPathPatterns(
