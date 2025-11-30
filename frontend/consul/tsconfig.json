@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ],
+  "compilerOptions": {
+    "baseUrl": ".", // 以项目根目录为基准
+    "paths": {
+      "@/*": ["src/*"] // 将 @/* 映射到 src/ 目录
+    }
+  }
+}

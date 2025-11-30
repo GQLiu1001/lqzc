@@ -69,6 +69,7 @@ pnpm-debug.log*
 
 # 本地环境配置（一般不提交）
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
