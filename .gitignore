@@ -82,3 +82,7 @@ pnpm-debug.log*
 Thumbs.db
 *.swp
 *.swo
+
+
+config.js
+project.config.json

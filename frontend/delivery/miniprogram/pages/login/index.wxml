@@ -1,0 +1,44 @@
+<!--pages/login/index.wxml-->
+<view class="login-container">
+  <!-- Logo 区域 -->
+  <view class="logo-container">
+    <image class="logo" src="/assets/images/logo.png" mode="widthFix"></image>
+    <view class="app-name">万邦送货</view>
+    <view class="app-slogan">高效运输，安全可靠</view>
+  </view>
+
+  <!-- 审核状态提示 -->
+  <block wx:if="{{auditStatus === 0}}">
+    <view class="audit-status pending">
+      <icon type="info" size="24" color="#3A7FED"></icon>
+      <view class="audit-text">您的账号正在审核中，请耐心等待...</view>
+    </view>
+  </block>
+  <block wx:elif="{{auditStatus === 2}}">
+    <view class="audit-status rejected">
+      <icon type="warn" size="24" color="#FF4D4F"></icon>
+      <view class="audit-text">您的账号审核未通过，请联系管理员</view>
+    </view>
+  </block>
+
+  <!-- 登录表单 -->
+  <block wx:if="{{auditStatus === null}}">
+    <view class="form-container">
+      <view class="form-title">司机登录/注册</view>
+
+      <view class="form-item">
+        <view class="form-label">手机号</view>
+        <input class="form-input" type="number" placeholder="请输入手机号" 
+               data-field="phone" bindinput="handleInput" />
+      </view>
+
+      <button class="submit-btn" bindtap="handleLogin" loading="{{isSubmitting}}">
+        登录/注册
+      </button>
+      
+      <view class="login-tips">
+        首次登录将自动创建账号，并等待后台审核
+      </view>
+    </view>
+  </block>
+</view> 

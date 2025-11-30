@@ -1,0 +1,40 @@
+<!-- pages/user-center/index.wxml -->
+<view class="page_container">
+  <view class="top_bg" />
+  <view class="main_content">
+    <view class="userinfo_container">
+      <image class="avatar" src="{{userInfo.avatar || '/assets/icons/avatar.png'}}" mode="aspectFill" />
+      <view class="user_info">
+        <block wx:if="{{ !userInfo.driverName }}">
+          <view class="username" bind:tap="navigateToUserInfo">请完善个人信息</view>
+        </block>
+        <block wx:else>
+          <view class="username">{{userInfo.driverName || '司机'}}</view>
+          <view class="phone">{{userInfo.phone || '未设置手机号'}}</view>
+          <view class="audit-status" wx:if="{{userInfo.auditStatus === 0}}">审核状态：待审核</view>
+          <view class="audit-status approved" wx:elif="{{userInfo.auditStatus === 1}}">审核状态：已通过</view>
+          <view class="audit-status rejected" wx:elif="{{userInfo.auditStatus === 2}}">审核状态：已拒绝</view>
+        </block>
+      </view>
+    </view>
+    
+    <view class="menu-container">
+      <view class="menu-item" bindtap="navigateToUserInfo">
+        <view class="menu-left">
+          <image class="menu-icon" src="../../images/icons/user.png" />
+          <view class="menu-text">修改信息</view>
+        </view>
+        <image class="arrow-icon" src="../../images/icons/arrow.png" />
+      </view>
+      
+      <view class="menu-item" bindtap="handleLogout" wx:if="{{userInfo.driverName}}">
+        <view class="menu-left">
+          <image class="menu-icon" src="../../images/icons/logout.png" />
+          <view class="menu-text">退出登录</view>
+        </view>
+        <image class="arrow-icon" src="../../images/icons/arrow.png" />
+      </view>
+    </view>
+  </view>
+  <cloud-tip-modal showTipProps="{{showTip}}" title="{{title}}" content="{{content}}" />
+</view>

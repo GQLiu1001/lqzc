@@ -1,0 +1,31 @@
+<view class="profile-container">
+  <!-- 用户信息卡片 -->
+  <view class="user-card">
+    <view class="user-info">
+      <image class="avatar" src="{{userInfo.avatar || '/assets/icons/avatar.png'}}" mode="aspectFill"></image>
+      <view class="user-details">
+        <text class="username">{{userInfo.name || '未登录'}}</text>
+        <text class="user-id">ID: {{userInfo.id || '--'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 功能菜单 -->
+  <view class="menu-list">
+    <view class="menu-group">
+      <view class="menu-item" bindtap="navigateToUserInfo">
+        <image class="menu-icon" src="/assets/icons/user-info.png"></image>
+        <text class="menu-text">个人信息</text>
+        <image class="arrow-icon" src="/assets/icons/arrow-right.png"></image>
+      </view>
+      <view class="menu-item" bindtap="navigateToWallet">
+        <image class="menu-icon" src="/assets/icons/wallet.png"></image>
+        <text class="menu-text">我的钱包</text>
+        <image class="arrow-icon" src="/assets/icons/arrow-right.png"></image>
+      </view>
+    </view>
+  </view>
+
+  <!-- 退出登录按钮 -->
+  <view class="logout-button" bindtap="handleLogout">退出登录</view>
+</view> 

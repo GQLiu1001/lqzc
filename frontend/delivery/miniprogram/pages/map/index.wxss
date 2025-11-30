@@ -1,0 +1,507 @@
+.map-container {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+}
+
+.delivery-map {
+  width: 100%;
+  height: 100%;
+}
+
+/* 顶部控制栏 */
+.top-control-bar {
+  position: absolute;
+  top: 30rpx;
+  left: 30rpx;
+  right: 30rpx;
+  display: flex;
+  justify-content: space-between;
+  z-index: 100;
+}
+
+/* 通用面板样式 */
+.info-panel {
+  background-color: #FFFFFF;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10rpx;
+}
+
+.panel-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-label {
+  font-size: 26rpx;
+  color: #999999;
+  width: 80rpx;
+  margin-right: 10rpx;
+}
+
+.info-value {
+  font-size: 26rpx;
+  color: #333333;
+  font-weight: bold;
+}
+
+/* 状态面板 */
+.status-panel {
+  position: absolute;
+  top: 30rpx;
+  right: 30rpx;
+  background-color: #FFFFFF;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  width: 180rpx;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+
+.status-item:last-child {
+  margin-bottom: 0;
+}
+
+.status-label {
+  font-size: 28rpx;
+  color: #666666;
+  margin-right: 20rpx;
+}
+
+.status-value {
+  font-size: 28rpx;
+  color: #3A7FED;
+  font-weight: bold;
+}
+
+.status-switch {
+  transform: scale(0.8);
+  margin-left: -10rpx;
+}
+
+/* 路线信息面板 */
+.route-panel {
+  position: absolute;
+  top: 30rpx;
+  left: 30rpx;
+  background-color: #FFFFFF;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  width: 180rpx;
+  z-index: 99;
+}
+
+.route-header {
+  border-bottom: 1rpx solid #EEEEEE;
+  padding-bottom: 10rpx;
+  margin-bottom: 15rpx;
+}
+
+.route-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333333;
+}
+
+.route-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.route-info {
+  margin-bottom: 15rpx;
+}
+
+.route-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.route-label {
+  font-size: 26rpx;
+  color: #999999;
+  width: 80rpx;
+}
+
+.route-value {
+  font-size: 26rpx;
+  color: #333333;
+  font-weight: bold;
+}
+
+.refresh-btn {
+  font-size: 24rpx;
+  height: 60rpx;
+  line-height: 60rpx;
+  background-color: #F5F5F5;
+  color: #3A7FED;
+  border: none;
+  border-radius: 30rpx;
+  padding: 0;
+}
+
+/* 底部面板 */
+.bottom-panel {
+  position: absolute;
+  bottom: 30rpx;
+  left: 30rpx;
+  right: 30rpx;
+  background-color: #FFFFFF;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 90;
+}
+
+.panel-header {
+  padding: 20rpx;
+  border-bottom: 1rpx solid #F5F5F5;
+}
+
+.panel-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-title text {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333333;
+}
+
+.order-status {
+  font-size: 28rpx;
+  color: #3A7FED;
+  font-weight: normal;
+}
+
+.panel-content {
+  padding: 20rpx;
+}
+
+/* 订单详情样式 */
+.order-details {
+  margin-bottom: 20rpx;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 10rpx;
+}
+
+.detail-label {
+  width: 80rpx;
+  font-size: 28rpx;
+  color: #999999;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.address-row {
+  align-items: flex-start;
+}
+
+.address-value {
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* 操作按钮样式 */
+.action-buttons {
+  display: flex;
+  gap: 20rpx;
+}
+
+.action-btn {
+  flex: 1;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  background: #F5F5F5;
+  color: #666666;
+  margin: 0;
+  padding: 0;
+}
+
+.action-btn.primary {
+  background: #3A7FED;
+  color: #FFFFFF;
+}
+
+/* 浮动按钮区域 */
+.float-buttons {
+  position: absolute;
+  right: 30rpx;
+  bottom: 200rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  z-index: 95;
+}
+
+.float-button {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background-color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+}
+
+.button-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.cancel-btn {
+  background-color: #FF6B6B;
+}
+
+.nav-btn {
+  background-color: #4CAF50;
+}
+
+/* 下拉面板 */
+.dropdown-panel {
+  position: absolute;
+  right: 120rpx;
+  bottom: 200rpx;
+  background-color: #FFFFFF;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  z-index: 94;
+  width: 200rpx;
+  overflow: hidden;
+}
+
+.panel-item {
+  padding: 20rpx;
+  font-size: 28rpx;
+  color: #333333;
+  border-bottom: 1rpx solid #F5F5F5;
+}
+
+.panel-item:last-child {
+  border-bottom: none;
+}
+
+/* 无订单提示 */
+.empty-order-tip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 30rpx 60rpx;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  z-index: 80;
+}
+
+.empty-order-tip text {
+  font-size: 32rpx;
+  color: #333333;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+}
+
+.empty-order-tip .sub-tip {
+  font-size: 26rpx;
+  color: #999999;
+  font-weight: normal;
+}
+
+/* 订单弹窗样式 */
+.order-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+}
+
+.popup-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.popup-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #FFFFFF;
+  border-radius: 24rpx 24rpx 0 0;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.popup-header {
+  padding: 30rpx;
+  text-align: center;
+  border-bottom: 1rpx solid #F0F0F0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.popup-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333333;
+}
+
+.countdown-timer {
+  background-color: #FF6B6B;
+  color: #FFFFFF;
+  padding: 8rpx 16rpx;
+  border-radius: 20rpx;
+  min-width: 80rpx;
+}
+
+.countdown-text {
+  font-size: 24rpx;
+  font-weight: bold;
+}
+
+.popup-body {
+  padding: 30rpx;
+}
+
+.order-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.order-info-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.order-info-row.highlight {
+  padding: 20rpx;
+  background-color: #F9F9F9;
+  border-radius: 12rpx;
+  margin: -10rpx -10rpx 20rpx;
+}
+
+.info-title {
+  font-size: 30rpx;
+  color: #666666;
+  font-weight: bold;
+}
+
+.info-content {
+  font-size: 30rpx;
+  color: #333333;
+  text-align: right;
+  max-width: 400rpx;
+  word-break: break-all;
+}
+
+.price {
+  color: #FF6B6B;
+  font-weight: bold;
+}
+
+.popup-footer {
+  padding: 30rpx;
+  background-color: #F9F9F9;
+}
+
+.countdown-bar {
+  margin-bottom: 30rpx;
+  text-align: center;
+}
+
+.countdown-bar text {
+  font-size: 28rpx;
+  color: #999999;
+  margin-bottom: 10rpx;
+  display: block;
+}
+
+.progress-bar {
+  height: 10rpx;
+  background-color: #E0E0E0;
+  border-radius: 5rpx;
+  overflow: hidden;
+}
+
+.progress {
+  height: 100%;
+  background-color: #3A7FED;
+  border-radius: 5rpx;
+  transition: width 1s linear;
+}
+
+.popup-buttons {
+  display: flex;
+  gap: 20rpx;
+}
+
+.popup-btn {
+  flex: 1;
+  height: 90rpx;
+  line-height: 90rpx;
+  text-align: center;
+  border-radius: 45rpx;
+  font-size: 32rpx;
+  font-weight: bold;
+  margin: 0;
+  padding: 0;
+}
+
+.popup-btn.reject {
+  background-color: #F5F5F5;
+  color: #666666;
+}
+
+.popup-btn.accept {
+  background-color: #3A7FED;
+  color: #FFFFFF;
+} 

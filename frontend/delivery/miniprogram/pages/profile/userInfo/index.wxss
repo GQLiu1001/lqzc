@@ -1,0 +1,145 @@
+.userinfo-container {
+  min-height: 100vh;
+  background-color: #F5F5F5;
+  padding-bottom: 40rpx;
+}
+
+.userinfo-header {
+  background-color: #FFFFFF;
+  padding: 40rpx 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.avatar-container {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 80rpx;
+  overflow: hidden;
+}
+
+.avatar {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-edit {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50rpx;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-text {
+  color: #FFFFFF;
+  font-size: 24rpx;
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333333;
+  padding: 30rpx;
+  background-color: #FFFFFF;
+  margin-top: 20rpx;
+  border-bottom: 1rpx solid #EEEEEE;
+}
+
+.section-subtitle {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333333;
+  padding: 20rpx 0;
+}
+
+.userinfo-form {
+  background-color: #FFFFFF;
+  padding: 0 30rpx;
+}
+
+.form-item {
+  display: flex;
+  align-items: center;
+  padding: 30rpx 0;
+  border-bottom: 1rpx solid #EEEEEE;
+}
+
+.form-item:last-child {
+  border-bottom: none;
+}
+
+.form-label {
+  width: 160rpx;
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.form-label.required::before {
+  content: '*';
+  color: #E5512D;
+  margin-right: 5rpx;
+}
+
+.form-input {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.form-picker {
+  flex: 1;
+}
+
+.picker-text {
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.upload-section {
+  padding: 20rpx 0 30rpx;
+  background-color: #FFFFFF;
+}
+
+.upload-area {
+  display: flex;
+  padding: 20rpx 0;
+}
+
+.upload-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 20rpx;
+}
+
+.upload-image {
+  width: 200rpx;
+  height: 150rpx;
+  background-color: #F5F5F5;
+  margin-bottom: 10rpx;
+}
+
+.upload-text {
+  font-size: 24rpx;
+  color: #999999;
+}
+
+.submit-btn {
+  margin: 40rpx 30rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  background: #3A7FED;
+  color: #FFFFFF;
+  border-radius: 44rpx;
+  font-size: 32rpx;
+} 

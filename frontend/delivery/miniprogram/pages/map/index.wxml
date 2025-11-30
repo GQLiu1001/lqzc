@@ -1,0 +1,150 @@
+<view class="map-container">
+  <map
+    id="deliveryMap"
+    class="delivery-map"
+    longitude="{{longitude}}"
+    latitude="{{latitude}}"
+    scale="{{scale}}"
+    markers="{{markers}}"
+    polyline="{{polyline}}"
+    show-location="true"
+    enable-rotate="true"
+    enable-satellite="{{false}}"
+    bindmarkertap="onMarkerTap"
+  ></map>
+  
+  <!-- 顶部控制区域 -->
+  <view class="top-control-bar">
+    <!-- 路线信息面板 -->
+    <view class="route-panel info-panel" wx:if="{{currentOrder}}">
+      <view class="panel-row">
+        <text class="info-label">距离</text>
+        <text class="info-value">{{routeDistance}}km</text>
+      </view>
+      <view class="panel-row">
+        <text class="info-label">时间</text>
+        <text class="info-value">{{routeTime}}</text>
+      </view>
+    </view>
+    
+    <!-- 状态面板 -->
+    <view class="status-panel info-panel">
+      <view class="panel-row">
+        <text class="info-label">状态</text>
+        <text class="info-value">{{deliveryStatus}}</text>
+      </view>
+      <view class="panel-row" wx:if="{{!currentOrder}}">
+        <text class="info-label">在线</text>
+        <switch class="status-switch" checked="{{isOnline}}" bindchange="toggleOnlineStatus" color="#3A7FED" />
+      </view>
+    </view>
+  </view>
+  
+  <!-- 浮动按钮区域 -->
+  <view class="float-buttons">
+    <!-- 取消订单按钮 -->
+    <view class="float-button cancel-btn" bindtap="cancelAllOrders" wx:if="{{currentOrder}}">
+      <image class="button-icon" src="/images/icons/cancel.png"></image>
+    </view>
+  </view>
+  
+  <!-- 位置选择下拉面板 -->
+  <view class="dropdown-panel" wx:if="{{showLocationPicker}}">
+    <view class="panel-item" bindtap="selectLocation" data-type="start">起点</view>
+    <view class="panel-item" bindtap="selectLocation" data-type="end">终点</view>
+    <view class="panel-item" bindtap="selectLocation" data-type="customer">客户</view>
+  </view>
+  
+  <!-- 底部订单信息面板 -->
+  <view class="bottom-panel" wx:if="{{currentOrder}}">
+    <view class="panel-header">
+      <view class="panel-title">
+        <text>订单信息</text>
+        <text class="order-status">{{orderStatus}}</text>
+      </view>
+    </view>
+    <view class="panel-content">
+      <view class="order-details">
+        <view class="detail-row">
+          <text class="detail-label">电话</text>
+          <text class="detail-value">{{customerPhone}}</text>
+        </view>
+        <view class="detail-row address-row">
+          <text class="detail-label">地址</text>
+          <text class="detail-value address-value">{{customerAddress}}</text>
+        </view>
+        <view class="detail-row" wx:if="{{currentOrder.tonnage}}">
+          <text class="detail-label">吨位</text>
+          <text class="detail-value">{{currentOrder.tonnage}}吨</text>
+        </view>
+        <view class="detail-row" wx:if="{{currentOrder.deliveryFee}}">
+          <text class="detail-label">配送费</text>
+          <text class="detail-value price">¥{{currentOrder.deliveryFee}}</text>
+        </view>
+      </view>
+      
+      <view class="action-buttons">
+        <button class="action-btn" bindtap="callCustomer">联系客户</button>
+        <button class="action-btn primary" bindtap="updateOrderStatus">{{nextActionText}}</button>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 无订单提示 -->
+  <view class="empty-order-tip" wx:if="{{!currentOrder && isOnline}}">
+    <text>等待新订单</text>
+    <text class="sub-tip">在线状态可以接收订单推送</text>
+  </view>
+  
+  <view class="empty-order-tip" wx:if="{{!currentOrder && !isOnline}}">
+    <text>当前处于离线状态</text>
+    <text class="sub-tip">请切换在线状态开始接单</text>
+  </view>
+  
+  <!-- 新订单弹窗 -->
+  <view class="order-popup" wx:if="{{newOrderVisible}}">
+    <view class="popup-mask"></view>
+    <view class="popup-content">
+      <view class="popup-header">
+        <text class="popup-title">新订单</text>
+        <view class="countdown-timer">
+          <text class="countdown-text">{{countdown}}秒</text>
+        </view>
+      </view>
+      
+      <view class="popup-body">
+        <view class="order-info-row highlight">
+          <text class="info-title">配送费</text>
+          <text class="info-content price">¥{{newOrder.delivery_fee}}</text>
+        </view>
+        
+        <view class="order-info-row" wx:if="{{newOrder.goods_weight}}">
+          <text class="info-title">重量</text>
+          <text class="info-content">{{newOrder.goods_weight}}kg</text>
+        </view>
+        
+        <view class="order-info-row">
+          <text class="info-title">电话</text>
+          <text class="info-content">{{newOrder.customer_phone}}</text>
+        </view>
+        
+        <view class="order-info-row">
+          <text class="info-title">地址</text>
+          <text class="info-content">{{newOrder.delivery_address}}</text>
+        </view>
+        
+        <view class="order-info-row" wx:if="{{newOrder.remark}}">
+          <text class="info-title">备注</text>
+          <text class="info-content">{{newOrder.remark}}</text>
+        </view>
+      </view>
+      
+      <view class="popup-footer">
+        <view class="popup-buttons">
+          <button class="popup-btn reject" bindtap="rejectOrder">拒绝订单</button>
+          <button class="popup-btn accept" bindtap="acceptOrder">接受订单</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view> 

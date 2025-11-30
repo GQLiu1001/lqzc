@@ -1,0 +1,26 @@
+<!--pages/profile/userInfo/index.wxml-->
+<view class="userinfo-container">
+  <view class="userinfo-header">
+    <view class="avatar-container">
+      <image class="avatar" src="{{userInfo.avatar || '/assets/icons/avatar.png'}}" mode="aspectFill"></image>
+      <view class="avatar-edit" bindtap="chooseAvatar">
+        <text class="edit-text">更换</text>
+      </view>
+    </view>
+  </view>
+  
+  <view class="section-title">基本信息</view>
+  <view class="userinfo-form">
+    <view class="form-item">
+      <text class="form-label required">姓名</text>
+      <input class="form-input" value="{{userInfo.name}}" placeholder="请输入姓名" bindinput="inputDriverName" />
+    </view>
+    
+    <view class="form-item">
+      <text class="form-label required">手机号</text>
+      <input class="form-input" value="{{userInfo.phone}}" placeholder="请输入手机号" bindinput="inputPhone" type="number" maxlength="11" />
+    </view>
+  </view>
+  
+  <view class="submit-btn" bindtap="saveUserInfo">提交信息</view>
+</view>

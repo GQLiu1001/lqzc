@@ -1,0 +1,8 @@
+<view class="wallet-container">
+  <view class="wallet-header">
+    <view class="balance-section">
+      <text class="balance-label">账户余额(元)</text>
+      <text class="balance-value">{{balance}}</text>
+    </view>
+  </view>
+</view> 
