@@ -1,8 +1,8 @@
-CREATE DATABASE IF NOT EXISTS `lqzc_db`
+CREATE DATABASE IF NOT EXISTS `lqzc_db_new`
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_general_ci;
 
-USE `lqzc_db`;
+USE `lqzc_db_new`;
 
 -- ----------------------------
 -- 1. 瓷砖库存表
@@ -368,39 +368,39 @@ INSERT INTO `customer_user` (`id`, `nickname`, `phone`, `avatar`, `email`, `gend
 VALUES (1, '陈晨', '13800138001', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200', 'chenchen@example.com', 1, 2, 1, 'H5', DATE_SUB(NOW(), INTERVAL 1 DAY)),
        (2, '刘涛', '13900139002', 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=200', NULL, 1, 1, 1, 'MiniApp', DATE_SUB(NOW(), INTERVAL 2 DAY)),
        (3, '李可心', '13700137003', 'https://images.unsplash.com/photo-1502685104226-ee32379fefbe?w=200', 'lixin@example.com', 2, 3, 1, 'PC', NOW())
-ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`), `level` = VALUES(`level`), `status` = VALUES(`status`), `update_time` = NOW();
+    ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`), `level` = VALUES(`level`), `status` = VALUES(`status`), `update_time` = NOW();
 
 INSERT INTO `loyalty_points_account` (`customer_id`, `balance`, `total_earned`, `total_spent`, `frozen`)
 VALUES (1, 3000, 4800, 1800, 0),
        (2, 860, 1260, 400, 0),
        (3, 150, 450, 300, 0)
-ON DUPLICATE KEY UPDATE `balance` = VALUES(`balance`), `total_earned` = VALUES(`total_earned`), `total_spent` = VALUES(`total_spent`), `update_time` = NOW();
+    ON DUPLICATE KEY UPDATE `balance` = VALUES(`balance`), `total_earned` = VALUES(`total_earned`), `total_spent` = VALUES(`total_spent`), `update_time` = NOW();
 
 INSERT INTO `loyalty_points_log` (`customer_id`, `change_amount`, `balance_after`, `source_type`, `order_id`, `remark`)
 VALUES (1, 500, 3200, 1, 1, '订单完成赠送积分'),
        (1, -200, 3000, 5, 1, '支付抵扣积分'),
        (2, 180, 860, 1, 2, '支付成功赠送积分'),
        (3, 150, 150, 3, NULL, '签到奖励')
-ON DUPLICATE KEY UPDATE `remark` = VALUES(`remark`);
+    ON DUPLICATE KEY UPDATE `remark` = VALUES(`remark`);
 
 INSERT INTO `coupon_template` (`id`, `title`, `type`, `threshold_amount`, `discount_amount`, `discount_rate`, `max_discount`, `valid_from`, `valid_to`, `total_issued`, `per_user_limit`, `status`)
 VALUES (1, '满299减30', 1, 299.00, 30.00, 0.00, NULL, DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 500, 2, 1),
        (2, '全场9折券', 2, 0.00, 0.00, 0.90, 150.00, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 15 DAY), 200, 1, 1),
        (3, '新人现金券5元', 3, 0.00, 5.00, 0.00, NULL, DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_ADD(NOW(), INTERVAL 20 DAY), 1000, 1, 1)
-ON DUPLICATE KEY UPDATE `status` = VALUES(`status`), `update_time` = NOW();
+    ON DUPLICATE KEY UPDATE `status` = VALUES(`status`), `update_time` = NOW();
 
 INSERT INTO `customer_coupon` (`id`, `customer_id`, `template_id`, `status`, `code`, `obtained_channel`, `used_order_id`, `use_time`, `expire_time`)
 VALUES (1, 1, 1, 1, 'CC30OFF', '首页领券', 1, DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_ADD(NOW(), INTERVAL 25 DAY)),
        (2, 1, 2, 0, 'VIP90', '会员赠送', NULL, NULL, DATE_ADD(NOW(), INTERVAL 12 DAY)),
        (3, 2, 3, 0, 'NEW5', '新人礼', NULL, NULL, DATE_ADD(NOW(), INTERVAL 20 DAY)),
        (4, 3, 1, 2, 'EXP30', '活动券', NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 DAY))
-ON DUPLICATE KEY UPDATE `status` = VALUES(`status`), `used_order_id` = VALUES(`used_order_id`), `update_time` = NOW();
+    ON DUPLICATE KEY UPDATE `status` = VALUES(`status`), `used_order_id` = VALUES(`used_order_id`), `update_time` = NOW();
 
 INSERT INTO `customer_address` (`id`, `customer_id`, `receiver_name`, `receiver_phone`, `province`, `city`, `district`, `detail`, `tag`, `is_default`, `latitude`, `longitude`)
 VALUES (1, 1, '陈晨', '13800138001', '广东省', '深圳市', '南山区', '科技园1号创新大厦', '公司', 1, 22.533500, 113.930400),
        (2, 2, '刘涛', '13900139002', '广东省', '广州市', '天河区', '珠江新城2号', '家', 1, 23.123400, 113.321100),
        (3, 3, '李可心', '13700137003', '广东省', '佛山市', '禅城区', '季华六路88号', '工地', 0, 23.021200, 113.110200)
-ON DUPLICATE KEY UPDATE `detail` = VALUES(`detail`), `is_default` = VALUES(`is_default`), `update_time` = NOW();
+    ON DUPLICATE KEY UPDATE `detail` = VALUES(`detail`), `is_default` = VALUES(`is_default`), `update_time` = NOW();
 
 -- 插入角色数据（admin 和 employee）
 INSERT INTO `role` (`role_key`, `description`)
