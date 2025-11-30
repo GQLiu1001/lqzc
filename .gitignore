@@ -1,4 +1,4 @@
-**.yaml
+### Java / Maven ###
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -14,11 +14,12 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr
-
+*.yml
+*.yaml
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -31,3 +32,52 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# ================= 前端 / Node / Vite =================
+
+# 依赖目录（根目录和 wanbang-frontend 里都会覆盖）
+node_modules/
+
+# 打包 / 构建产物（Vite / React / Vue 等）
+dist/
+dist-ssr/
+build/
+
+# Vite / Webpack / Parcel 等缓存
+.vite/
+.cache/
+.parcel-cache/
+webpack-cache/
+rollup.cache/
+
+# 测试 & 覆盖率
+coverage/
+.nyc_output/
+
+# Lint / TS 缓存
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 本地环境配置（一般不提交）
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# 如果你连生产的 .env.production 也不想提交，可以再加一行：
+# .env.production
+# wanbang-frontend/.env.production
+
+# OS / 编辑器杂项
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
