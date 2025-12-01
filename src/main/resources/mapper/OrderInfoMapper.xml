@@ -7,23 +7,38 @@
     <resultMap id="BaseResultMap" type="com.lqzc.common.domain.OrderInfo">
             <id property="id" column="id" />
             <result property="orderNo" column="order_no" />
+            <result property="customerId" column="customer_id" />
             <result property="customerPhone" column="customer_phone" />
+            <result property="orderSource" column="order_source" />
             <result property="totalPrice" column="total_price" />
+            <result property="payableAmount" column="payable_amount" />
+            <result property="discountAmount" column="discount_amount" />
             <result property="dispatchStatus" column="dispatch_status" />
+            <result property="orderStatus" column="order_status" />
+            <result property="payStatus" column="pay_status" />
+            <result property="payChannel" column="pay_channel" />
+            <result property="payTime" column="pay_time" />
+            <result property="deliveryFee" column="delivery_fee" />
             <result property="driverId" column="driver_id" />
             <result property="deliveryAddress" column="delivery_address" />
-            <result property="deliveryFee" column="delivery_fee" />
+            <result property="addressId" column="address_id" />
             <result property="goodsWeight" column="goods_weight" />
+            <result property="couponId" column="coupon_id" />
+            <result property="pointsUsed" column="points_used" />
+            <result property="expectedDeliveryTime" column="expected_delivery_time" />
+            <result property="receiveTime" column="receive_time" />
             <result property="remark" column="remark" />
+            <result property="cancelReason" column="cancel_reason" />
             <result property="version" column="version" />
             <result property="createTime" column="create_time" />
             <result property="updateTime" column="update_time" />
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,order_no,customer_phone,total_price,dispatch_status,driver_id,
-        delivery_address,delivery_fee,goods_weight,remark,version,
-        create_time,update_time
+        id,order_no,customer_id,customer_phone,order_source,total_price,payable_amount,discount_amount,
+        dispatch_status,order_status,pay_status,pay_channel,pay_time,delivery_fee,driver_id,delivery_address,
+        address_id,goods_weight,coupon_id,points_used,expected_delivery_time,receive_time,remark,cancel_reason,
+        version,create_time,update_time
     </sql>
 
     <select id="getOrderList" resultType="com.lqzc.common.records.OrderInfoRecords">

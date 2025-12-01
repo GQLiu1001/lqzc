@@ -16,10 +16,29 @@ public class OrderInfoRecords {
     /**/
     private Long id;
     private String orderNo;
+    private Long customerId;
     private String customerPhone;
+    private Integer orderSource;
     private BigDecimal totalPrice;
+    private BigDecimal payableAmount;
+    private BigDecimal discountAmount;
     private Integer dispatchStatus;
+    private Integer orderStatus;
+    private Integer payStatus;
+    private Integer payChannel;
+    private Date payTime;
+    private BigDecimal deliveryFee;
+    private Long driverId;
+    private String deliveryAddress;
+    private Long addressId;
+    private BigDecimal goodsWeight;
+    private Long couponId;
+    private Integer pointsUsed;
+    private Date expectedDeliveryTime;
+    private Date receiveTime;
     private String remark;
+    private String cancelReason;
+    private Integer version;
     private Date createTime;
     private Date updateTime;
     /**

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.CustomerUserMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.CustomerUser">
+            <id property="id" column="id" />
+            <result property="nickname" column="nickname" />
+            <result property="phone" column="phone" />
+            <result property="avatar" column="avatar" />
+            <result property="email" column="email" />
+            <result property="gender" column="gender" />
+            <result property="level" column="level" />
+            <result property="status" column="status" />
+            <result property="registerChannel" column="register_channel" />
+            <result property="lastLoginTime" column="last_login_time" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,nickname,phone,avatar,email,gender,level,status,register_channel,last_login_time,create_time,update_time
+    </sql>
+</mapper>

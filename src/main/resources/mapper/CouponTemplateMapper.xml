@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.CouponTemplateMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.CouponTemplate">
+            <id property="id" column="id" />
+            <result property="title" column="title" />
+            <result property="type" column="type" />
+            <result property="thresholdAmount" column="threshold_amount" />
+            <result property="discountAmount" column="discount_amount" />
+            <result property="discountRate" column="discount_rate" />
+            <result property="maxDiscount" column="max_discount" />
+            <result property="validFrom" column="valid_from" />
+            <result property="validTo" column="valid_to" />
+            <result property="totalIssued" column="total_issued" />
+            <result property="perUserLimit" column="per_user_limit" />
+            <result property="status" column="status" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,title,type,threshold_amount,discount_amount,discount_rate,max_discount,valid_from,valid_to,
+        total_issued,per_user_limit,status,create_time,update_time
+    </sql>
+</mapper>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.LoyaltyPointsLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.LoyaltyPointsLog">
+            <id property="id" column="id" />
+            <result property="customerId" column="customer_id" />
+            <result property="changeAmount" column="change_amount" />
+            <result property="balanceAfter" column="balance_after" />
+            <result property="sourceType" column="source_type" />
+            <result property="orderId" column="order_id" />
+            <result property="remark" column="remark" />
+            <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,customer_id,change_amount,balance_after,source_type,order_id,remark,create_time
+    </sql>
+</mapper>

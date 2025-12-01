@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.OrderPaymentMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.OrderPayment">
+            <id property="id" column="id" />
+            <result property="orderId" column="order_id" />
+            <result property="payChannel" column="pay_channel" />
+            <result property="payAmount" column="pay_amount" />
+            <result property="transactionNo" column="transaction_no" />
+            <result property="payStatus" column="pay_status" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,order_id,pay_channel,pay_amount,transaction_no,pay_status,create_time,update_time
+    </sql>
+</mapper>

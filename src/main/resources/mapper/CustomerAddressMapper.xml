@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lqzc.mapper.CustomerAddressMapper">
+
+    <resultMap id="BaseResultMap" type="com.lqzc.common.domain.CustomerAddress">
+            <id property="id" column="id" />
+            <result property="customerId" column="customer_id" />
+            <result property="receiverName" column="receiver_name" />
+            <result property="receiverPhone" column="receiver_phone" />
+            <result property="province" column="province" />
+            <result property="city" column="city" />
+            <result property="district" column="district" />
+            <result property="detail" column="detail" />
+            <result property="tag" column="tag" />
+            <result property="isDefault" column="is_default" />
+            <result property="latitude" column="latitude" />
+            <result property="longitude" column="longitude" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,customer_id,receiver_name,receiver_phone,province,city,district,detail,tag,is_default,latitude,longitude,create_time,update_time
+    </sql>
+</mapper>

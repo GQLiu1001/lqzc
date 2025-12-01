@@ -30,6 +30,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -144,6 +145,12 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         String orderNo = OrderNumberGenerator.generateOrderNumber();
         orderInfo.setDispatchStatus(DispatchConstant.WAITING_DISPATCH);
         orderInfo.setOrderNo(orderNo);
+        orderInfo.setOrderSource(orderInfo.getOrderSource() == null ? 1 : orderInfo.getOrderSource());
+        orderInfo.setPayableAmount(orderInfo.getPayableAmount() == null ? orderInfo.getTotalPrice() : orderInfo.getPayableAmount());
+        orderInfo.setDiscountAmount(orderInfo.getDiscountAmount() == null ? BigDecimal.ZERO : orderInfo.getDiscountAmount());
+        orderInfo.setOrderStatus(orderInfo.getOrderStatus() == null ? 0 : orderInfo.getOrderStatus());
+        orderInfo.setPayStatus(orderInfo.getPayStatus() == null ? 0 : orderInfo.getPayStatus());
+        orderInfo.setPointsUsed(orderInfo.getPointsUsed() == null ? 0 : orderInfo.getPointsUsed());
         int insert = orderInfoMapper.insert(orderInfo);
         if (insert == 0) {
             throw new RuntimeException("创建总订单失败");
@@ -171,6 +178,12 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         String orderNo = OrderNumberGenerator.generateOrderNumber();
         orderInfo.setDispatchStatus(DispatchConstant.WAITING_DISPATCH);
         orderInfo.setOrderNo(orderNo);
+        orderInfo.setOrderSource(orderInfo.getOrderSource() == null ? 1 : orderInfo.getOrderSource());
+        orderInfo.setPayableAmount(orderInfo.getPayableAmount() == null ? orderInfo.getTotalPrice() : orderInfo.getPayableAmount());
+        orderInfo.setDiscountAmount(orderInfo.getDiscountAmount() == null ? BigDecimal.ZERO : orderInfo.getDiscountAmount());
+        orderInfo.setOrderStatus(orderInfo.getOrderStatus() == null ? 0 : orderInfo.getOrderStatus());
+        orderInfo.setPayStatus(orderInfo.getPayStatus() == null ? 0 : orderInfo.getPayStatus());
+        orderInfo.setPointsUsed(orderInfo.getPointsUsed() == null ? 0 : orderInfo.getPointsUsed());
         int insert = orderInfoMapper.insert(orderInfo);
         if (insert == 0) {
             throw new RuntimeException("创建总订单失败");
