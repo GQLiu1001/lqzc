@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getAnonymousToken, refreshAnonymousToken } from "@/lib/api";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: string;
@@ -140,42 +141,49 @@ const AIAssistant = () => {
 
       const decoder = new TextDecoder();
       let fullContent = "";
+      let buffer = "";
 
       // 读取流数据
       const readStream = async () => {
         try {
           while (true) {
             const { done, value } = await reader.read();
-            
-            if (done) {
-              break;
-            }
+            if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            
-            for (const line of lines) {
-              if (line.startsWith('data:')) {
-                const data = line.slice(5).trim(); // 去掉 'data:' (5个字符)
-                if (data && data !== '[DONE]') {
-                  fullContent += data;
-                  setMessages(prev => 
-                    prev.map(msg => 
-                      msg.id === aiMessageId 
-                        ? { ...msg, content: fullContent }
-                        : msg
-                    )
-                  );
-                }
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split("\n\n");
+            buffer = events.pop() || "";
+
+            for (const event of events) {
+              const dataLines = event
+                .split("\n")
+                .filter((line) => line.startsWith("data:"));
+
+              if (dataLines.length === 0) continue;
+
+              const data = dataLines
+                  .map((line) => line.slice(5))
+                  .join("\n");
+
+              if (data === "[DONE]") {
+                reader.cancel();
+                return;
               }
+
+              fullContent += data;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMessageId ? { ...msg, content: fullContent } : msg
+                )
+              );
             }
           }
         } catch (error) {
-          if (error.name !== 'AbortError') {
-            console.error('读取流错误:', error);
-            setMessages(prev => 
-              prev.map(msg => 
-                msg.id === aiMessageId 
+          if ((error as any).name !== "AbortError") {
+            console.error("读取流错误:", error);
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === aiMessageId
                   ? { ...msg, content: fullContent || "抱歉，我遇到了一些问题，请稍后再试。" }
                   : msg
               )
@@ -267,9 +275,15 @@ const AIAssistant = () => {
                         {!message.isUser && (
                           <Bot className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-500" />
                         )}
-                        <div className="text-sm whitespace-pre-wrap">
-                          {message.content || (isLoading && !message.content ? "思考中..." : "")}
-                        </div>
+                        {message.content ? (
+                          <ReactMarkdown className="prose prose-sm max-w-none whitespace-pre-wrap">
+                            {message.content}
+                          </ReactMarkdown>
+                        ) : (
+                          <div className="text-sm whitespace-pre-wrap">
+                            {isLoading ? "思考中..." : ""}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
