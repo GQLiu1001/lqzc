@@ -1,5 +1,6 @@
 package com.lqzc.ai.tool;
 
+import com.lqzc.ai.service.ManualSearchService;
 import com.lqzc.common.constant.RedisConstant;
 import com.lqzc.common.resp.SalesResp;
 import jakarta.annotation.Resource;
@@ -21,9 +22,12 @@ public class AITools {
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private ManualSearchService manualSearchService;
 
     // 请求参数的定义保持不变
     public record TopSalesQueryRequest() {}
+    public record ManualSearchRequest(String question) {}
 
     // 2. 这是一个真正的工具方法，不再是返回 Function 的工厂方法
     @Tool // 3. 明确声明这是一个 AI 工具。框架会扫描到它。
@@ -48,5 +52,15 @@ public class AITools {
 
         log.info("查询到热销榜: {}", resps);
         return resps;
+    }
+
+    @Tool
+    @Description("从 Milvus 知识库查询售后/保养/安装等手册内容，输入用户问题，返回匹配片段。")
+    public List<ManualSearchService.ManualHit> searchManualKnowledge(ManualSearchRequest request) {
+        if (request == null || request.question() == null || request.question().isBlank()) {
+            return Collections.emptyList();
+        }
+        log.info("AI请求查询手册知识库: {}", request.question());
+        return manualSearchService.search(request.question(), 5);
     }
 }

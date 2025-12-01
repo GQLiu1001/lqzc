@@ -9,6 +9,7 @@ import io.milvus.response.SearchResultsWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -19,47 +20,62 @@ public class ManualSearchService {
     private final ManualEmbeddingService embeddingService;
     private final MilvusServiceClient milvusClient;
 
-    public void testSearch(String question) {
-        // 1. 生成查询向量（和你写入 Milvus 的 embedding 维度一致）
+    /**
+     * 查询 Milvus，返回与问题最相关的片段
+     */
+    public List<ManualHit> search(String question, int topK) {
         List<Float> queryEmb = embeddingService.embedText(question);
-
-        // 2. Milvus 需要 List<List<Float>>，外面再包一层 List
         List<List<Float>> vectors = Collections.singletonList(queryEmb);
 
-        // 3. 构造搜索参数
-        @SuppressWarnings("deprecation") // 如果你不想看到黄色警告，可以加这一句
+        int limit = Math.max(topK, 1);
+
+        @SuppressWarnings("deprecation")
         SearchParam searchParam = SearchParam.newBuilder()
                 .withDatabaseName("lqzc_db")
-                .withCollectionName("manual_rag")                  // 你现在插的就是这个集合
-                .withMetricType(MetricType.COSINE)                   // 和建表时 metric 保持一致
+                .withCollectionName("manual_rag")
+                .withMetricType(MetricType.COSINE)
                 .withOutFields(List.of("manual_id", "content", "chunk_index"))
-                .withTopK(5)                                       // SDK 的签名是 Integer
-                .withVectors(vectors)                              // 这里用我们刚刚构造的 vectors
-                .withVectorFieldName("embedding")                  // 跟建集合的向量字段名一致
-                .withParams("{\"nprobe\": 10}")                    // 常规 IVF 参数
+                .withTopK(limit)
+                .withVectors(vectors)
+                .withVectorFieldName("embedding")
+                .withParams("{\"nprobe\": 10}")
                 .build();
 
-        // 4. 执行搜索
         R<SearchResults> result = milvusClient.search(searchParam);
+        if (result == null || result.getData() == null || result.getData().getResults() == null) {
+            return Collections.emptyList();
+        }
+
         SearchResults data = result.getData();
         SearchResultsWrapper wrapper = new SearchResultsWrapper(data.getResults());
 
-        System.out.println("======= 搜索结果 =======");
-        for (int i = 0; i < vectors.size(); i++) { // 现在就 1 个 query
+        List<ManualHit> hits = new ArrayList<>();
+        for (int i = 0; i < vectors.size(); i++) { // 当前只查询一个问题
             List<SearchResultsWrapper.IDScore> scores = wrapper.getIDScore(i);
             for (SearchResultsWrapper.IDScore s : scores) {
-                Long id = s.getLongID();
-                Float score = s.getScore();
-                String manualId = (String) s.get("manual_id");
-                String content = (String) s.get("content");
-                Long chunkIndex = (Long) s.get("chunk_index");
-
-                System.out.printf(
-                        "pk=%d, score=%.4f, manualId=%s, chunkIndex=%d%n内容: %s%n%n",
-                        id, score, manualId, chunkIndex, content
-                );
+                hits.add(new ManualHit(
+                        (String) s.get("manual_id"),
+                        (Long) s.get("chunk_index"),
+                        (String) s.get("content"),
+                        s.getScore()
+                ));
             }
         }
+        return hits;
+    }
+
+    public void testSearch(String question) {
+        List<ManualHit> hits = search(question, 5);
+        System.out.println("======= 搜索结果 =======");
+        for (ManualHit hit : hits) {
+            System.out.printf(
+                    "manualId=%s, chunkIndex=%d, score=%.4f%n内容: %s%n%n",
+                    hit.manualId(), hit.chunkIndex(), hit.score(), hit.content()
+            );
+        }
         System.out.println("=======================");
+    }
+
+    public record ManualHit(String manualId, Long chunkIndex, String content, Float score) {
     }
 }
