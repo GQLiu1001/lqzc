@@ -1,7 +1,7 @@
-package com.lqzc.config;
+package com.lqzc.ai.config;
 
 import com.alibaba.cloud.ai.memory.jdbc.MysqlChatMemoryRepository;
-import com.lqzc.utils.AITools;
+import com.lqzc.ai.tool.AITools;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;

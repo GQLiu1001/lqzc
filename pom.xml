@@ -34,6 +34,8 @@
         <jakarta.mail>2.0.1</jakarta.mail>
         <mybatis-plus-spring-boot3-starter>3.5.12</mybatis-plus-spring-boot3-starter>
         <weixin-java-miniapp>4.5.5.B</weixin-java-miniapp>
+        <spring-ai-alibaba>1.1.0.0-M5</spring-ai-alibaba>
+        <milvus>2.6.9</milvus>
     </properties>
     <dependencies>
         <dependency>
@@ -91,23 +93,46 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.alibaba.cloud.ai</groupId>-->
+<!--            <artifactId>spring-ai-alibaba-starter-memory-jdbc</artifactId>-->
+<!--            <version>1.0.0.2</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>com.alibaba.cloud.ai</groupId>-->
+<!--            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>-->
+<!--            <version>1.0.0.2</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>com.alibaba.cloud.ai</groupId>-->
+<!--            <artifactId>spring-ai-alibaba-bom</artifactId>-->
+<!--            <version>1.0.0.2</version>-->
+<!--            <type>pom</type>-->
+<!--            <scope>import</scope>-->
+<!--        </dependency>-->
+
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-starter-memory-jdbc</artifactId>
-            <version>1.0.0.2</version>
+            <version>${spring-ai-alibaba}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-agent-framework</artifactId>
+            <version>${spring-ai-alibaba}</version>
         </dependency>
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
-            <version>1.0.0.2</version>
+            <version>${spring-ai-alibaba}</version>
         </dependency>
+
         <dependency>
-            <groupId>com.alibaba.cloud.ai</groupId>
-            <artifactId>spring-ai-alibaba-bom</artifactId>
-            <version>1.0.0.2</version>
-            <type>pom</type>
-            <scope>import</scope>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+            <version>${milvus}</version>
         </dependency>
+
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>

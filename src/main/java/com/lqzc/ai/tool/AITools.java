@@ -1,4 +1,4 @@
-package com.lqzc.utils;
+package com.lqzc.ai.tool;
 
 import com.lqzc.common.constant.RedisConstant;
 import com.lqzc.common.resp.SalesResp;
