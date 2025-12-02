@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS `customer_user`
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '客户ID',
     `nickname` VARCHAR(50) NOT NULL COMMENT '昵称',
     `phone` VARCHAR(20) NOT NULL COMMENT '手机号',
+    `password` VARCHAR(100) DEFAULT NULL COMMENT '密码',
     `avatar` VARCHAR(255) DEFAULT '' COMMENT '头像URL',
     `email` VARCHAR(255) DEFAULT NULL COMMENT '邮箱',
     `gender` TINYINT DEFAULT 0 COMMENT '性别：0未知 1男 2女',
@@ -169,6 +170,23 @@ CREATE TABLE IF NOT EXISTS `customer_user`
     UNIQUE KEY `uniq_customer_phone` (`phone`),
     KEY `idx_customer_level` (`level`, `status`)
     ) ENGINE=InnoDB COMMENT='前台客户账户';
+
+-- ----------------------------
+-- 7.1 会员等级配置 -- 新增表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `member_level`
+(
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `level` TINYINT NOT NULL COMMENT '等级：1=普通 2=银卡 3=金卡 4=黑金',
+    `name` VARCHAR(50) NOT NULL COMMENT '等级名称',
+    `min_points` INT NOT NULL DEFAULT 0 COMMENT '升级起始积分',
+    `max_points` INT NOT NULL DEFAULT 2147483647 COMMENT '升级终止积分（闭区间）',
+    `benefits` VARCHAR(255) DEFAULT NULL COMMENT '权益描述',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_level` (`level`)
+    ) ENGINE=InnoDB COMMENT='会员等级配置';
 
 -- ----------------------------
 -- 8. 积分账户与流水 -- 新增表
@@ -193,7 +211,7 @@ CREATE TABLE IF NOT EXISTS `loyalty_points_log`
     `customer_id` BIGINT NOT NULL COMMENT '客户ID',
     `change_amount` INT NOT NULL COMMENT '积分变动（正加负扣）',
     `balance_after` INT NOT NULL COMMENT '变动后余额',
-    `source_type` TINYINT NOT NULL COMMENT '来源：1下单赠送 2评价 3签到 4退款回退 5支付抵扣',
+    `source_type` TINYINT NOT NULL COMMENT '来源：1下单赠送 2退款回退 3支付抵扣',
     `order_id` BIGINT DEFAULT NULL COMMENT '关联订单',
     `remark` VARCHAR(200) DEFAULT NULL COMMENT '备注',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -297,6 +315,57 @@ CREATE TABLE IF NOT EXISTS `order_status_history`
     KEY `idx_history_order` (`order_id`, `create_time`)
     ) ENGINE=InnoDB COMMENT='订单状态变更记录';
 
+-- ----------------------------
+-- 12. 售后工单 -- 新增表
+-- ----------------------------
+CREATE TABLE IF NOT EXISTS `after_sales_order`
+(
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '售后ID',
+    `after_sales_no` VARCHAR(40) NOT NULL COMMENT '售后单号',
+    `order_id` BIGINT NOT NULL COMMENT '关联订单ID',
+    `customer_id` BIGINT NOT NULL COMMENT '客户ID',
+    `type` TINYINT NOT NULL COMMENT '1=仅退款 2=退货退款',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1处理中 2同意 3拒绝 4用户取消',
+    `reason` VARCHAR(200) DEFAULT NULL COMMENT '申请原因',
+    `images` TEXT COMMENT '凭证图片，逗号分隔或JSON',
+    `refund_amount` DECIMAL(10,2) DEFAULT 0.00 COMMENT '应退金额',
+    `refund_points` INT DEFAULT 0 COMMENT '需退回的积分',
+    `remark` VARCHAR(200) DEFAULT NULL COMMENT '客服备注',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_after_sales_no` (`after_sales_no`),
+    KEY `idx_after_sales_order` (`order_id`, `status`),
+    KEY `idx_after_sales_customer` (`customer_id`, `status`),
+    CONSTRAINT `fk_after_sales_order` FOREIGN KEY (`order_id`) REFERENCES `order_info` (`id`) ON DELETE RESTRICT
+    ) ENGINE=InnoDB COMMENT='售后工单主表';
+
+CREATE TABLE IF NOT EXISTS `after_sales_item`
+(
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '售后明细ID',
+    `after_sales_id` BIGINT NOT NULL COMMENT '售后ID',
+    `item_id` BIGINT NOT NULL COMMENT '库存商品ID',
+    `amount` INT NOT NULL COMMENT '售后数量',
+    `subtotal_price` DECIMAL(10,2) NOT NULL COMMENT '退款小计',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_after_sales_item` (`after_sales_id`),
+    CONSTRAINT `fk_after_sales_item` FOREIGN KEY (`after_sales_id`) REFERENCES `after_sales_order` (`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB COMMENT='售后明细';
+
+CREATE TABLE IF NOT EXISTS `after_sales_log`
+(
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '售后日志ID',
+    `after_sales_id` BIGINT NOT NULL COMMENT '售后ID',
+    `status` TINYINT NOT NULL COMMENT '与主单一致的状态值',
+    `operator` VARCHAR(50) DEFAULT NULL COMMENT '操作人',
+    `remark` VARCHAR(200) DEFAULT NULL COMMENT '备注',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_after_sales_log` (`after_sales_id`, `create_time`),
+    CONSTRAINT `fk_after_sales_log` FOREIGN KEY (`after_sales_id`) REFERENCES `after_sales_order` (`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB COMMENT='售后状态流水';
+
 -- 系统用户表
 CREATE TABLE IF NOT EXISTS `user`
 (
@@ -363,6 +432,14 @@ CREATE TABLE IF NOT EXISTS `driver`
 -- ====================================================================================
 START TRANSACTION;
 
+-- 会员等级示例
+INSERT INTO `member_level` (`level`, `name`, `min_points`, `max_points`, `benefits`)
+VALUES (1, '普通会员', 0, 999, '下单积分'),
+       (2, '银卡会员', 1000, 4999, '满减券/包邮'),
+       (3, '金卡会员', 5000, 9999, '专属客服/生日券'),
+       (4, '黑金会员', 10000, 2147483647, '高级客服/专属折扣')
+    ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `max_points` = VALUES(`max_points`), `benefits` = VALUES(`benefits`), `update_time` = NOW();
+
 -- 插入前台客户及积分、券示例
 INSERT INTO `customer_user` (`id`, `nickname`, `phone`, `avatar`, `email`, `gender`, `level`, `status`, `register_channel`, `last_login_time`)
 VALUES (1, '陈晨', '13800138001', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200', 'chenchen@example.com', 1, 2, 1, 'H5', DATE_SUB(NOW(), INTERVAL 1 DAY)),
@@ -378,9 +455,9 @@ VALUES (1, 3000, 4800, 1800, 0),
 
 INSERT INTO `loyalty_points_log` (`customer_id`, `change_amount`, `balance_after`, `source_type`, `order_id`, `remark`)
 VALUES (1, 500, 3200, 1, 1, '订单完成赠送积分'),
-       (1, -200, 3000, 5, 1, '支付抵扣积分'),
+       (1, -200, 3000, 3, 1, '支付抵扣积分'),
        (2, 180, 860, 1, 2, '支付成功赠送积分'),
-       (3, 150, 150, 3, NULL, '签到奖励')
+       (3, 150, 150, 2, NULL, '退款回退')
     ON DUPLICATE KEY UPDATE `remark` = VALUES(`remark`);
 
 INSERT INTO `coupon_template` (`id`, `title`, `type`, `threshold_amount`, `discount_amount`, `discount_rate`, `max_discount`, `valid_from`, `valid_to`, `total_issued`, `per_user_limit`, `status`)
@@ -401,6 +478,20 @@ VALUES (1, 1, '陈晨', '13800138001', '广东省', '深圳市', '南山区', '�
        (2, 2, '刘涛', '13900139002', '广东省', '广州市', '天河区', '珠江新城2号', '家', 1, 23.123400, 113.321100),
        (3, 3, '李可心', '13700137003', '广东省', '佛山市', '禅城区', '季华六路88号', '工地', 0, 23.021200, 113.110200)
     ON DUPLICATE KEY UPDATE `detail` = VALUES(`detail`), `is_default` = VALUES(`is_default`), `update_time` = NOW();
+
+-- 售后示例
+INSERT INTO `after_sales_order` (`id`, `after_sales_no`, `order_id`, `customer_id`, `type`, `status`, `reason`, `images`, `refund_amount`, `refund_points`, `remark`)
+VALUES (1, 'AS202407280001', 1, 1, 2, 1, '商品破损', 'https://img1.url', 2520.00, 200, '客服处理中')
+    ON DUPLICATE KEY UPDATE `status` = VALUES(`status`), `refund_amount` = VALUES(`refund_amount`), `update_time` = NOW();
+
+INSERT INTO `after_sales_item` (`after_sales_id`, `item_id`, `amount`, `subtotal_price`)
+VALUES (1, 1, 10, 255.00)
+    ON DUPLICATE KEY UPDATE `amount` = VALUES(`amount`), `subtotal_price` = VALUES(`subtotal_price`);
+
+INSERT INTO `after_sales_log` (`after_sales_id`, `status`, `operator`, `remark`, `create_time`)
+VALUES (1, 0, 'customer', '用户提交', DATE_SUB(NOW(), INTERVAL 1 DAY)),
+       (1, 1, '客服A', '客服处理中', DATE_SUB(NOW(), INTERVAL 12 HOUR))
+    ON DUPLICATE KEY UPDATE `remark` = VALUES(`remark`);
 
 -- 插入角色数据（admin 和 employee）
 INSERT INTO `role` (`role_key`, `description`)
