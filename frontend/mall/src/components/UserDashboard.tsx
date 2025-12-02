@@ -46,6 +46,9 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ProfileEditDialog } from "./ProfileEditDialog";
+import { mallApi, UserProfile } from "@/lib/api";
+import { Edit } from "lucide-react";
 
 type UserDashboardProps = {
   onBack?: () => void;
@@ -167,14 +170,35 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
     }
   }, [orderDialogOpen]);
 
-  const userProfile = {
-    name: "陈晨",
-    level: "金卡会员",
-    phone: "138****8001",
-    email: "chenchen@example.com",
-    avatar:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop",
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    id: 0,
+    nickname: "加载中...",
+    phone: "",
+    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop",
+    level_name: "普通会员",
+    email: ""
+  });
+
+  const fetchProfile = async () => {
+    try {
+      const profile = await mallApi.getUserProfile();
+      setUserProfile(prev => ({
+        ...prev,
+        ...profile,
+        // 如果后端没返回头像，保留默认
+        avatar: profile.avatar || prev.avatar
+      }));
+    } catch (error) {
+      console.error("Failed to fetch profile", error);
+    }
   };
+
+  useEffect(() => {
+    if (isAuthed) {
+      fetchProfile();
+    }
+  }, [isAuthed]);
   const currentPoints = 3000;
   const memberLevels = [
     { name: "普通", threshold: 0 },
@@ -447,15 +471,18 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                 <p className="text-sm text-gray-500">欢迎回来</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-2xl font-bold text-gray-900">
-                    {userProfile.name}
+                    {userProfile.nickname}
                   </span>
                   <Badge className="bg-indigo-600 text-white shadow-sm cursor-pointer" onClick={() => setDetailDialog("points")}>
                     <Crown className="h-3 w-3 mr-1" />
-                    {userProfile.level}
+                    {userProfile.level_name || "普通会员"}
                   </Badge>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => setProfileDialogOpen(true)}>
+                    <Edit className="h-4 w-4 text-gray-500" />
+                  </Button>
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  {userProfile.phone} · {userProfile.email}
+                  {userProfile.phone} · {userProfile.email || "未绑定邮箱"}
                 </p>
               </div>
             </div>
@@ -603,13 +630,12 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
               {coupons.map((coupon) => (
                 <div
                   key={coupon.title}
-                  className={`rounded-2xl border p-4 space-y-2 transition-all hover:-translate-y-1 hover:shadow ${
-                    coupon.status === "warning"
+                  className={`rounded-2xl border p-4 space-y-2 transition-all hover:-translate-y-1 hover:shadow ${coupon.status === "warning"
                       ? "border-amber-200 bg-amber-50/60"
                       : coupon.status === "disabled"
                         ? "border-gray-200 bg-gray-50"
                         : "border-emerald-100 bg-emerald-50/70"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-xl font-semibold text-gray-900">
@@ -625,11 +651,10 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                   <p className="text-sm text-gray-600">{coupon.desc}</p>
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-xs ${
-                        coupon.status === "warning"
+                      className={`text-xs ${coupon.status === "warning"
                           ? "text-amber-700"
                           : "text-gray-500"
-                      }`}
+                        }`}
                     >
                       {coupon.expire}
                     </span>
@@ -1072,6 +1097,12 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ProfileEditDialog
+        open={profileDialogOpen}
+        onOpenChange={setProfileDialogOpen}
+        currentUser={userProfile}
+        onSuccess={fetchProfile}
+      />
     </section>
   );
 };

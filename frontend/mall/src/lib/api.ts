@@ -11,10 +11,10 @@ export const refreshAnonymousToken = async (): Promise<string> => {
   try {
     // 首先清除可能存在的旧token，以防万一
     localStorage.removeItem(TOKEN_STORAGE_KEY);
-    
+
     const response = await fetch(`${API_BASE_URL}/mall/auth/anonymous-token`);
     const result = await response.json();
-    
+
     if (result.code === 200) {
       // 将新token存储到localStorage
       localStorage.setItem(TOKEN_STORAGE_KEY, result.data);
@@ -63,7 +63,7 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
   // 如果响应是401 (Unauthorized)，则认为token过期，刷新token并重试一次
   if (response.status === 401) {
     console.warn('收到401响应，匿名token可能已过期，正在尝试刷新...');
-    
+
     try {
       const newToken = await refreshAnonymousToken();
       console.log('匿名token刷新成功，正在重试原始请求...');
@@ -174,7 +174,7 @@ export const mallApi = {
   // 获取商品列表
   getProductList: async (params: ProductListParams = {}): Promise<ProductListResponse> => {
     const queryParams = new URLSearchParams();
-    
+
     if (params.current) queryParams.append('current', params.current.toString());
     if (params.size) queryParams.append('size', params.size.toString());
     if (params.category && params.category !== '全部') {
@@ -185,13 +185,13 @@ export const mallApi = {
       const surfaceNum = surfaceReverseMap[params.surface];
       if (surfaceNum) queryParams.append('surface', surfaceNum.toString());
     }
-    
+
     const response = await authenticatedFetch(
       `${API_BASE_URL}/mall/items/list?${queryParams.toString()}`
     );
-    
+
     const result = await response.json();
-    
+
     if (result.code === 200) {
       return result.data;
     } else {
@@ -203,7 +203,7 @@ export const mallApi = {
   getCart: async (): Promise<CartItem[]> => {
     const response = await authenticatedFetch(`${API_BASE_URL}/mall/cart`);
     const result = await response.json();
-    
+
     if (result.code === 200) {
       // 安全处理返回的数据，确保返回数组
       if (result.data === null || result.data === undefined) {
@@ -225,9 +225,9 @@ export const mallApi = {
       method: 'POST',
       body: JSON.stringify(request),
     });
-    
+
     const result = await response.json();
-    
+
     if (result.code !== 200) {
       throw new Error(result.message || '修改购物车失败');
     }
@@ -239,9 +239,9 @@ export const mallApi = {
       method: 'DELETE',
       body: JSON.stringify(request),
     });
-    
+
     const result = await response.json();
-    
+
     if (result.code !== 200) {
       throw new Error(result.message || '删除购物车项目失败');
     }
@@ -253,11 +253,50 @@ export const mallApi = {
       method: 'POST',
       body: JSON.stringify(request),
     });
-    
+
     const result = await response.json();
-    
+
     if (result.code !== 200) {
       throw new Error(result.message || '创建订单失败');
     }
   },
-}; 
+
+  // 获取个人信息
+  getUserProfile: async (): Promise<UserProfile> => {
+    const response = await authenticatedFetch(`${API_BASE_URL}/mall/customer/profile`);
+    const result = await response.json();
+
+    if (result.code === 200) {
+      return result.data;
+    } else {
+      throw new Error(result.message || '获取个人信息失败');
+    }
+  },
+
+  // 修改个人信息
+  updateProfile: async (data: Partial<UserProfile>): Promise<void> => {
+    const response = await authenticatedFetch(`${API_BASE_URL}/mall/customer/profile`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (result.code !== 200) {
+      throw new Error(result.message || '修改个人信息失败');
+    }
+  },
+};
+
+export interface UserProfile {
+  id: number;
+  nickname: string;
+  phone: string;
+  avatar: string;
+  email?: string;
+  gender?: number;
+  level?: number;
+  level_name?: string;
+  points_balance?: number;
+  coupon_count?: number;
+}

@@ -109,6 +109,18 @@ const router = createRouter({
           name: 'selection-list',
           component: () => import('@/views/selection/SelectionList.vue'),
         },
+        // 客户管理
+        {
+          path: 'customer/list',
+          name: 'customer-list',
+          component: () => import('@/views/customer/CustomerList.vue'),
+        },
+        {
+          path: 'customer/detail/:id',
+          name: 'customer-detail',
+          component: () => import('@/views/customer/CustomerDetail.vue'),
+          props: true
+        },
       ],
     },
   ],

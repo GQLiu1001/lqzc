@@ -167,6 +167,18 @@ onUnmounted(() => {
             </el-menu-item>
           </el-sub-menu>
 
+          <!-- 客户管理 -->
+          <el-sub-menu index="6">
+            <template #title>
+              <el-icon><User /></el-icon>
+              <span>客户管理</span>
+            </template>
+            <el-menu-item index="/dashboard/customer/list">
+              <el-icon><User /></el-icon>
+              <template #title>客户列表</template>
+            </el-menu-item>
+          </el-sub-menu>
+
           <!-- 系统管理 -->
           <el-sub-menu index="4">
             <template #title>

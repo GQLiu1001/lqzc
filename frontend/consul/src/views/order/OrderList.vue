@@ -1,5 +1,8 @@
 <!--订单列表-->
 <!--订单列表-->
+```
+<!--订单列表-->
+<!--订单列表-->
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -7,6 +10,7 @@ import { useRouter } from 'vue-router';
 import { getOrders, getOrderDetail, updateOrder, updateOrderItem, deleteOrder, updateDispatchStatus, dispatchOrder, addOrderItem, deleteOrderItem } from '@/api/order';
 import { useUserStore } from '@/stores/user';
 import { getInventoryByModelNumber } from '@/api/inventory';
+import { getCustomerAddresses, addCustomerAddress, type CustomerAddress } from '@/api/customer';
 import type { OrderQueryParams, Order, SubOrderItem } from '@/types/interfaces';
 
 // 获取用户信息
@@ -671,10 +675,23 @@ const dispatchForm = ref({
   deliveryFee: 0,
 });
 
-
+// 地址相关状态
+const customerAddresses = ref<CustomerAddress[]>([]);
+const isAddingAddress = ref(false);
+const newAddressForm = ref<CustomerAddress>({
+  id: 0,
+  receiver_name: '',
+  receiver_phone: '',
+  province: '',
+  city: '',
+  district: '',
+  detail: '',
+  tag: '家',
+  is_default: 0
+});
 
 // 处理派送按钮点击
-const handleDispatchClick = (order: Order) => {
+const handleDispatchClick = async (order: Order) => {
   currentDispatchOrder.value = order;
   dispatchForm.value = {
     orderId: order.id,
@@ -683,7 +700,70 @@ const handleDispatchClick = (order: Order) => {
     deliveryWeight: 0,
     deliveryFee: 0,
   };
+  
+  // 获取客户地址列表
+  if (order.customer_phone) {
+    try {
+      const res = await getCustomerAddresses(order.customer_phone);
+      if (res.data.code === 200) {
+        customerAddresses.value = res.data.data || [];
+      }
+    } catch (e) {
+      console.error('获取客户地址失败', e);
+    }
+  }
+  
+  isAddingAddress.value = false;
   dispatchDialogVisible.value = true;
+};
+
+// 处理地址选择变化
+const handleAddressChange = (val: string) => {
+  if (val === 'new_address') {
+    isAddingAddress.value = true;
+    // 预填手机号
+    newAddressForm.value.receiver_phone = currentDispatchOrder.value?.customer_phone || '';
+  } else {
+    isAddingAddress.value = false;
+  }
+};
+
+// 保存新地址到客户地址谱
+const saveNewAddress = async () => {
+  if (!newAddressForm.value.receiver_name || !newAddressForm.value.receiver_phone || !newAddressForm.value.detail) {
+    ElMessage.error('请填写完整的地址信息（收货人、电话、详细地址）');
+    return null;
+  }
+  
+  if (!newAddressForm.value.province || !newAddressForm.value.city || !newAddressForm.value.district) {
+    ElMessage.error('请填写完整的省市区信息');
+    return null;
+  }
+  
+  try {
+    const res = await addCustomerAddress(newAddressForm.value);
+    if (res.data.code === 200) {
+      ElMessage.success('地址已添加到客户地址谱');
+      // 刷新地址列表
+      if (currentDispatchOrder.value?.customer_phone) {
+        const listRes = await getCustomerAddresses(currentDispatchOrder.value.customer_phone);
+        if (listRes.data.code === 200) {
+          customerAddresses.value = listRes.data.data || [];
+        }
+      }
+      // 选中新添加的地址
+      const newAddr = `${newAddressForm.value.province}${newAddressForm.value.city}${newAddressForm.value.district}${newAddressForm.value.detail}`;
+      dispatchForm.value.deliveryAddress = newAddr;
+      isAddingAddress.value = false;
+      return newAddr;
+    } else {
+      ElMessage.error(res.data.message || '添加地址失败');
+    }
+  } catch (e) {
+    console.error('添加地址失败', e);
+    ElMessage.error('添加地址失败，请稍后重试');
+  }
+  return null;
 };
 
 // 提交派送请求
@@ -695,6 +775,17 @@ const handleDispatch = async () => {
 
   if (dispatchForm.value.deliveryFee < 0) {
     ElMessage.error('配送费不能为负数');
+    return;
+  }
+
+  // 如果是新增地址模式，先保存地址
+  if (isAddingAddress.value) {
+    const newAddr = await saveNewAddress();
+    if (!newAddr) return; // 保存失败停止
+  }
+
+  if (!dispatchForm.value.deliveryAddress.trim()) {
+    ElMessage.error('派送地址不能为空');
     return;
   }
 
@@ -1037,10 +1128,9 @@ onMounted(() => {
 
     <!-- 派送对话框 -->
     <el-dialog
-      v-model="dispatchDialogVisible"
-      title="派送订单"
-      width="50%"
-      destroy-on-close
+        v-model="dispatchDialogVisible"
+        title="订单派送"
+        width="500px"
     >
       <div v-if="currentDispatchOrder" class="order-info-summary">
         <el-descriptions :column="2" border>
@@ -1055,36 +1145,65 @@ onMounted(() => {
         </el-descriptions>
       </div>
       <!-- 派送表单 -->
-      <el-form :model="dispatchForm" label-width="120px">
-        <el-form-item label="配送地址" required>
-          <el-input
+      <el-form :model="dispatchForm" label-width="100px">
+        <el-form-item label="派送地址" required>
+          <el-select
             v-model="dispatchForm.deliveryAddress"
-            placeholder="请输入配送地址"
-          />
+            placeholder="请选择或输入地址"
+            filterable
+            allow-create
+            default-first-option
+            @change="handleAddressChange"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in customerAddresses"
+              :key="item.id"
+              :label="item.province + item.city + item.district + item.detail"
+              :value="item.province + item.city + item.district + item.detail"
+            >
+              <span style="float: left">{{ item.tag }}</span>
+              <span style="float: right; color: #8492a6; font-size: 13px">
+                {{ item.receiver_name }} {{ item.province }}{{ item.city }}...
+              </span>
+            </el-option>
+            <el-option label="+ 添加新地址" value="new_address" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="配送备注">
-          <el-input
-            v-model="dispatchForm.deliveryRemark"
-            type="textarea"
-            placeholder="请输入配送备注"
-            :rows="3"
-          />
+
+        <!-- 新增地址表单 -->
+        <div v-if="isAddingAddress" class="new-address-form">
+          <el-form-item label="收货人">
+            <el-input v-model="newAddressForm.receiver_name" placeholder="姓名" />
+          </el-form-item>
+          <el-form-item label="联系电话">
+            <el-input v-model="newAddressForm.receiver_phone" placeholder="电话" />
+          </el-form-item>
+          <el-form-item label="省市区">
+            <el-input v-model="newAddressForm.province" placeholder="省" style="width: 32%" />
+            <el-input v-model="newAddressForm.city" placeholder="市" style="width: 32%; margin-left: 2%" />
+            <el-input v-model="newAddressForm.district" placeholder="区" style="width: 32%; margin-left: 2%" />
+          </el-form-item>
+          <el-form-item label="详细地址">
+            <el-input v-model="newAddressForm.detail" placeholder="街道门牌号" />
+          </el-form-item>
+          <el-form-item label="标签">
+            <el-radio-group v-model="newAddressForm.tag">
+              <el-radio label="家">家</el-radio>
+              <el-radio label="公司">公司</el-radio>
+              <el-radio label="工地">工地</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </div>
+
+        <el-form-item label="货物重量(kg)">
+          <el-input-number v-model="dispatchForm.deliveryWeight" :min="0" :precision="2" />
         </el-form-item>
-        <el-form-item label="货物吨数" required>
-          <el-input-number
-            v-model="dispatchForm.deliveryWeight"
-            :min="0.1"
-            :step="0.1"
-            :precision="1"
-          />
+        <el-form-item label="配送费(元)">
+          <el-input-number v-model="dispatchForm.deliveryFee" :min="0" :precision="2" />
         </el-form-item>
-        <el-form-item label="配送费" required>
-          <el-input-number
-            v-model="dispatchForm.deliveryFee"
-            :min="0"
-            :step="1"
-            :precision="0"
-          />
+        <el-form-item label="备注">
+          <el-input v-model="dispatchForm.deliveryRemark" type="textarea" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -1252,4 +1371,13 @@ onMounted(() => {
   padding-bottom: 15px;
   border-bottom: 1px solid #eee;
 }
+
+.new-address-form {
+  background-color: #f5f7fa;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border: 1px dashed #dcdfe6;
+}
 </style>
+```

@@ -2,9 +2,11 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import { UserFilled, User, Notebook, Search } from '@element-plus/icons-vue';
 import { postOrder } from '@/api/order';
 import { useUserStore } from '@/stores/user';
 import { getInventoryByModelNumber } from '@/api/inventory';
+import { getCustomerList } from '@/api/customer';
 
 // 获取用户信息
 const userStore = useUserStore();
@@ -34,6 +36,113 @@ const orderForm = ref({
   operator_id: operatorId,
   order_remark: '',
   total_amount: 0,
+});
+
+// 客户查询相关
+interface CustomerItem {
+  value: string;
+  link: string;
+  id: number;
+  nickname: string;
+  phone: string;
+  level_name?: string;
+  is_registered: boolean;
+}
+
+const customerList = ref<CustomerItem[]>([]);
+const selectedCustomer = ref<CustomerItem | null>(null);
+const phoneBookVisible = ref(false);
+const phoneBookLoading = ref(false);
+const phoneBookList = ref<CustomerItem[]>([]);
+const phoneBookSearch = ref('');
+
+// 查询客户是否已注册（电话谱匹配）
+const querySearchAsync = async (queryString: string, cb: (arg: any) => void) => {
+  if (!queryString) {
+    selectedCustomer.value = null;
+    cb([]);
+    return;
+  }
+  
+  try {
+    const res = await getCustomerList({ phone: queryString });
+    if (res.data.code === 200 && res.data.data) {
+      const results = res.data.data.map((item: any) => ({
+        value: item.phone,
+        link: item.id,
+        id: item.id,
+        nickname: item.nickname || '未设置昵称',
+        phone: item.phone,
+        level_name: item.level_name || '普通会员',
+        is_registered: true
+      }));
+      cb(results);
+    } else {
+      cb([]);
+    }
+  } catch (e) {
+    console.error(e);
+    cb([]);
+  }
+};
+
+// 选择已注册客户
+const handleSelect = (item: CustomerItem) => {
+  selectedCustomer.value = item;
+  orderForm.value.customer_phone = item.value;
+};
+
+// 清除已选客户
+const handleClearCustomer = () => {
+  selectedCustomer.value = null;
+};
+
+// 打开电话谱对话框
+const openPhoneBook = async () => {
+  phoneBookVisible.value = true;
+  phoneBookLoading.value = true;
+  phoneBookSearch.value = '';
+  
+  try {
+    // 获取所有客户列表
+    const res = await getCustomerList({ size: 100 });
+    if (res.data.code === 200 && res.data.data) {
+      // 处理分页数据结构
+      const records = res.data.data.records || res.data.data;
+      phoneBookList.value = records.map((item: any) => ({
+        value: item.phone,
+        link: item.id,
+        id: item.id,
+        nickname: item.nickname || '未设置昵称',
+        phone: item.phone,
+        level_name: item.level_name || '普通会员',
+        is_registered: true
+      }));
+    }
+  } catch (e) {
+    console.error('获取客户列表失败:', e);
+    ElMessage.error('获取客户列表失败');
+  } finally {
+    phoneBookLoading.value = false;
+  }
+};
+
+// 从电话谱选择客户
+const selectFromPhoneBook = (customer: CustomerItem) => {
+  selectedCustomer.value = customer;
+  orderForm.value.customer_phone = customer.phone;
+  phoneBookVisible.value = false;
+  ElMessage.success(`已选择客户: ${customer.nickname}`);
+};
+
+// 电话谱搜索过滤
+const filteredPhoneBookList = computed(() => {
+  if (!phoneBookSearch.value) return phoneBookList.value;
+  const keyword = phoneBookSearch.value.toLowerCase();
+  return phoneBookList.value.filter(item => 
+    item.phone.includes(keyword) || 
+    item.nickname.toLowerCase().includes(keyword)
+  );
 });
 
 // 生成唯一ID的函数
@@ -294,21 +403,66 @@ const showSpecificationAndSurface = computed(() => {
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="客户手机号" required>
-              <el-input
+            <el-form-item label="客户电话" required>
+              <div class="phone-input-wrapper">
+                <el-autocomplete
                   v-model="orderForm.customer_phone"
+                  :fetch-suggestions="querySearchAsync"
                   placeholder="请输入客户手机号"
-                  maxlength="11"
-              />
+                  @select="handleSelect"
+                  @clear="handleClearCustomer"
+                  clearable
+                  style="flex: 1"
+                >
+                  <template #default="{ item }">
+                    <div class="customer-suggestion">
+                      <div class="customer-phone">
+                        <el-icon class="registered-icon"><UserFilled /></el-icon>
+                        {{ item.value }}
+                      </div>
+                      <div class="customer-info">
+                        <span class="nickname">{{ item.nickname }}</span>
+                        <el-tag size="small" type="success">{{ item.level_name }}</el-tag>
+                      </div>
+                    </div>
+                  </template>
+                </el-autocomplete>
+                <!-- 电话谱按钮 -->
+                <el-tooltip content="打开电话谱" placement="top">
+                  <el-button 
+                    type="primary" 
+                    :icon="Notebook" 
+                    @click="openPhoneBook"
+                    class="phone-book-btn"
+                  />
+                </el-tooltip>
+              </div>
+              <!-- 电话谱标志 - 显示已选客户信息 -->
+              <div v-if="selectedCustomer" class="customer-badge">
+                <el-tag type="success" effect="light">
+                  <el-icon><UserFilled /></el-icon>
+                  已注册客户
+                </el-tag>
+                <span class="customer-detail">
+                  {{ selectedCustomer.nickname }} · {{ selectedCustomer.level_name }}
+                </span>
+              </div>
+              <div v-else-if="orderForm.customer_phone && orderForm.customer_phone.length === 11" class="customer-badge">
+                <el-tag type="info" effect="light">
+                  <el-icon><User /></el-icon>
+                  新客户
+                </el-tag>
+                <span class="new-customer-hint">该手机号尚未注册，订单创建后可在客户管理中为其注册账号</span>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="操作人ID" required>
+            <el-form-item label="操作员ID">
               <el-input
-                  v-model.number="orderForm.operator_id"
-                  placeholder="系统自动获取"
-                  type="number"
-                  disabled
+                v-model.number="orderForm.operator_id"
+                placeholder="系统自动获取"
+                type="number"
+                disabled
               />
             </el-form-item>
           </el-col>
@@ -454,6 +608,52 @@ const showSpecificationAndSurface = computed(() => {
         <el-button @click="resetForm">重置</el-button>
       </div>
     </el-form>
+
+    <!-- 电话谱对话框 -->
+    <el-dialog
+      v-model="phoneBookVisible"
+      title="📞 客户电话谱"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <!-- 搜索框 -->
+      <div class="phone-book-search">
+        <el-input
+          v-model="phoneBookSearch"
+          placeholder="搜索手机号或昵称..."
+          :prefix-icon="Search"
+          clearable
+        />
+      </div>
+
+      <!-- 客户列表 -->
+      <div v-loading="phoneBookLoading" class="phone-book-list">
+        <div v-if="filteredPhoneBookList.length === 0" class="phone-book-empty">
+          <el-empty description="暂无客户数据" />
+        </div>
+        <div
+          v-for="customer in filteredPhoneBookList"
+          :key="customer.id"
+          class="phone-book-item"
+          @click="selectFromPhoneBook(customer)"
+        >
+          <div class="phone-book-avatar">
+            <el-icon :size="24"><UserFilled /></el-icon>
+          </div>
+          <div class="phone-book-info">
+            <div class="phone-book-name">{{ customer.nickname }}</div>
+            <div class="phone-book-phone">{{ customer.phone }}</div>
+          </div>
+          <div class="phone-book-level">
+            <el-tag size="small" type="success">{{ customer.level_name }}</el-tag>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="phoneBookVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -522,5 +722,139 @@ const showSpecificationAndSurface = computed(() => {
 
 .negative {
   color: #F56C6C;
+}
+
+/* 电话谱样式 */
+.customer-suggestion {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 0;
+}
+
+.customer-phone {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: #303133;
+}
+
+.registered-icon {
+  color: #67C23A;
+  margin-right: 6px;
+}
+
+.customer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.customer-info .nickname {
+  color: #606266;
+  font-size: 12px;
+}
+
+.customer-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.customer-badge .el-tag .el-icon {
+  margin-right: 4px;
+}
+
+.customer-detail {
+  color: #606266;
+  font-size: 13px;
+}
+
+.new-customer-hint {
+  color: #909399;
+  font-size: 12px;
+}
+
+/* 电话输入框包装器 */
+.phone-input-wrapper {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.phone-book-btn {
+  flex-shrink: 0;
+}
+
+/* 电话谱对话框样式 */
+.phone-book-search {
+  margin-bottom: 15px;
+}
+
+.phone-book-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+}
+
+.phone-book-empty {
+  padding: 40px 0;
+}
+
+.phone-book-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.phone-book-item:last-child {
+  border-bottom: none;
+}
+
+.phone-book-item:hover {
+  background-color: #ecf5ff;
+}
+
+.phone-book-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.phone-book-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.phone-book-name {
+  font-weight: 600;
+  color: #303133;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.phone-book-phone {
+  color: #606266;
+  font-size: 13px;
+}
+
+.phone-book-level {
+  flex-shrink: 0;
+  margin-left: 10px;
 }
 </style>
