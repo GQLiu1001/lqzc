@@ -36,7 +36,7 @@ public class LoyaltyPointsLog {
     private Integer balanceAfter;
 
     /**
-     * 来源：1下单赠送 2评价 3签到 4退款回退 5支付抵扣
+     * 来源：1下单赠送 2退款回退 3支付抵扣
      */
     private Integer sourceType;
 

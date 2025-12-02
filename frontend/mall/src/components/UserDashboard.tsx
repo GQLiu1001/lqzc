@@ -258,7 +258,7 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
   const pointsLogs = [
     { amount: "+500", reason: "订单完成奖励", order: "ORD202310270001", time: "2024-10-27 16:20" },
     { amount: "-200", reason: "支付抵扣", order: "ORD202310270001", time: "2024-10-27 09:30" },
-    { amount: "+150", reason: "签到奖励", order: "-", time: "2024-10-18 08:00" },
+    { amount: "+150", reason: "退款回退", order: "-", time: "2024-10-18 08:00" },
   ];
 
   const orders = [
@@ -524,7 +524,7 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                   <Sparkles className="h-5 w-5 text-indigo-500" />
                   积分
                 </CardTitle>
-                <CardDescription>消费、签到、评价均可获得积分并抵扣现金</CardDescription>
+                <CardDescription>消费可获得积分并抵扣现金</CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setDetailDialog("points")}>
                 查看详情
