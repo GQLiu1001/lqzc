@@ -38,8 +38,14 @@ public class WebConfig implements WebMvcConfigurer {
                         "/mall/**"
                 )
                 .excludePathPatterns(
-                        "/mall/auth/**",
-                        "/mall/selection/**"
+                        "/mall/customer/register",
+                        "/mall/customer/login",
+                        "/mall/customer/forgot-password",
+                        "/mall/customer/reset-password",
+                        "/mall/items/**",        // 商品列表不需要登录
+                        "/mall/selection/**",    // 选品单不需要登录
+                        "/mall/ai/**",           // AI助手不需要登录
+                        "/mall/coupon/market"    // 领券中心可公开浏览
                 );
 
         registry.addInterceptor(driverInterceptor)

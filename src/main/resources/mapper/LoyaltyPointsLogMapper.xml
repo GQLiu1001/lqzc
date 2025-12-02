@@ -5,17 +5,63 @@
 <mapper namespace="com.lqzc.mapper.LoyaltyPointsLogMapper">
 
     <resultMap id="BaseResultMap" type="com.lqzc.common.domain.LoyaltyPointsLog">
-            <id property="id" column="id" />
-            <result property="customerId" column="customer_id" />
-            <result property="changeAmount" column="change_amount" />
-            <result property="balanceAfter" column="balance_after" />
-            <result property="sourceType" column="source_type" />
-            <result property="orderId" column="order_id" />
-            <result property="remark" column="remark" />
-            <result property="createTime" column="create_time" />
+        <id property="id" column="id"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="changeAmount" column="change_amount"/>
+        <result property="balanceAfter" column="balance_after"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="orderId" column="order_id"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 流水记录结果映射 -->
+    <resultMap id="PointsLogRespMap" type="com.lqzc.common.resp.PointsLogItemResp">
+        <id property="id" column="id"/>
+        <result property="customerPhone" column="customer_phone"/>
+        <result property="changeAmount" column="change_amount"/>
+        <result property="balanceAfter" column="balance_after"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="orderId" column="order_id"/>
+        <result property="remark" column="remark"/>
+        <result property="createTime" column="create_time"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,customer_id,change_amount,balance_after,source_type,order_id,remark,create_time
+        id, customer_id, change_amount, balance_after, source_type, order_id, remark, create_time
     </sql>
+
+    <!--
+        分页查询积分流水列表
+        关联customer_user表获取客户手机号
+    -->
+    <select id="selectPointsLogList" resultMap="PointsLogRespMap">
+        SELECT
+            l.id,
+            cu.phone AS customer_phone,
+            l.change_amount,
+            l.balance_after,
+            l.source_type,
+            l.order_id,
+            l.remark,
+            l.create_time
+        FROM loyalty_points_log l
+        LEFT JOIN customer_user cu ON l.customer_id = cu.id
+        <where>
+            <if test="customerPhone != null and customerPhone != ''">
+                AND cu.phone = #{customerPhone}
+            </if>
+            <if test="sourceType != null">
+                AND l.source_type = #{sourceType}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND l.create_time >= #{startDate}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND l.create_time &lt;= CONCAT(#{endDate}, ' 23:59:59')
+            </if>
+        </where>
+        ORDER BY l.create_time DESC
+    </select>
+
 </mapper>

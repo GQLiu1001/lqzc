@@ -4,25 +4,92 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lqzc.mapper.CouponTemplateMapper">
 
+    <!-- 基础结果映射 -->
     <resultMap id="BaseResultMap" type="com.lqzc.common.domain.CouponTemplate">
-            <id property="id" column="id" />
-            <result property="title" column="title" />
-            <result property="type" column="type" />
-            <result property="thresholdAmount" column="threshold_amount" />
-            <result property="discountAmount" column="discount_amount" />
-            <result property="discountRate" column="discount_rate" />
-            <result property="maxDiscount" column="max_discount" />
-            <result property="validFrom" column="valid_from" />
-            <result property="validTo" column="valid_to" />
-            <result property="totalIssued" column="total_issued" />
-            <result property="perUserLimit" column="per_user_limit" />
-            <result property="status" column="status" />
-            <result property="createTime" column="create_time" />
-            <result property="updateTime" column="update_time" />
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="type" column="type"/>
+        <result property="thresholdAmount" column="threshold_amount"/>
+        <result property="discountAmount" column="discount_amount"/>
+        <result property="discountRate" column="discount_rate"/>
+        <result property="maxDiscount" column="max_discount"/>
+        <result property="validFrom" column="valid_from"/>
+        <result property="validTo" column="valid_to"/>
+        <result property="totalIssued" column="total_issued"/>
+        <result property="perUserLimit" column="per_user_limit"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
     </resultMap>
 
+    <!-- 带统计的列表结果映射 -->
+    <resultMap id="TemplateListResultMap" type="com.lqzc.common.resp.CouponTemplateListResp">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="type" column="type"/>
+        <result property="thresholdAmount" column="threshold_amount"/>
+        <result property="discountAmount" column="discount_amount"/>
+        <result property="discountRate" column="discount_rate"/>
+        <result property="maxDiscount" column="max_discount"/>
+        <result property="validFrom" column="valid_from"/>
+        <result property="validTo" column="valid_to"/>
+        <result property="totalIssued" column="total_issued"/>
+        <result property="perUserLimit" column="per_user_limit"/>
+        <result property="status" column="status"/>
+        <result property="receivedCount" column="received_count"/>
+        <result property="usedCount" column="used_count"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 基础列定义 -->
     <sql id="Base_Column_List">
-        id,title,type,threshold_amount,discount_amount,discount_rate,max_discount,valid_from,valid_to,
-        total_issued,per_user_limit,status,create_time,update_time
+        id, title, type, threshold_amount, discount_amount, discount_rate, max_discount,
+        valid_from, valid_to, total_issued, per_user_limit, status, create_time, update_time
     </sql>
+
+    <!--
+        分页查询优惠券模板列表（含统计信息）
+        统计说明：
+        - received_count: 该模板的总领取数量（COUNT所有关联的customer_coupon记录）
+        - used_count: 该模板的已核销数量（SUM status=1的记录数）
+        使用LEFT JOIN确保没有领取记录的模板也能查询出来
+        使用子查询方式避免GROUP BY兼容性问题
+    -->
+    <select id="selectTemplateListWithStats" resultMap="TemplateListResultMap">
+        SELECT
+            t.id,
+            t.title,
+            t.type,
+            t.threshold_amount,
+            t.discount_amount,
+            t.discount_rate,
+            t.max_discount,
+            t.valid_from,
+            t.valid_to,
+            t.total_issued,
+            t.per_user_limit,
+            t.status,
+            t.create_time,
+            COALESCE(stats.received_count, 0) AS received_count,
+            COALESCE(stats.used_count, 0) AS used_count
+        FROM coupon_template t
+        LEFT JOIN (
+            SELECT
+                template_id,
+                COUNT(1) AS received_count,
+                SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS used_count
+            FROM customer_coupon
+            GROUP BY template_id
+        ) stats ON t.id = stats.template_id
+        <where>
+            <if test="status != null">
+                AND t.status = #{status}
+            </if>
+            <if test="title != null and title != ''">
+                AND t.title LIKE CONCAT('%', #{title}, '%')
+            </if>
+        </where>
+        ORDER BY t.create_time DESC
+    </select>
+
 </mapper>

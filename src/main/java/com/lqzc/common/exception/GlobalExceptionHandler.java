@@ -1,7 +1,6 @@
 package com.lqzc.common.exception;
 
 import com.lqzc.common.Result;
-import com.lqzc.common.enums.ResultCode;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -16,7 +15,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LianqingAdminException.class)
     public Result<?> handleLianqingAdminException(LianqingAdminException e) {
-        return Result.fail(ResultCode.UNAUTHORIZED.getCode(),e.getMessage(),null);}
+        // 业务异常返回500，不是401（401会导致前端认为登录过期）
+        return Result.fail(500, e.getMessage(), null);
+    }
 
     // 捕获所有其他运行时异常（作为兜底），防止敏感信息泄露
     @ExceptionHandler(RuntimeException.class)

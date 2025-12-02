@@ -47,19 +47,36 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ProfileEditDialog } from "./ProfileEditDialog";
-import { mallApi, UserProfile } from "@/lib/api";
-import { Edit } from "lucide-react";
+import { mallApi, authApi, addressApi, pointsApi, couponApi, orderApi, UserProfile, Address, PointsOverview, PointsLog, MyCoupon, OrderListItem, isLoggedIn, clearCustomerToken } from "@/lib/api";
+import { Edit, Gift, Volume2, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { CouponCenter } from "./CouponCenter";
 
 type UserDashboardProps = {
   onBack?: () => void;
 };
 
 type AddressForm = {
+  id?: number;
   label: string;
   name: string;
   phone: string;
+  province: string;
+  city: string;
+  district: string;
   detail: string;
   isDefault: boolean;
+};
+
+// 积分来源类型映射
+const getSourceTypeName = (sourceType: number): string => {
+  const typeMap: { [key: number]: string } = {
+    1: '下单赠送',
+    2: '退款回退',
+    3: '支付抵扣',
+    4: '人工调整',
+  };
+  return typeMap[sourceType] || '其他';
 };
 
 const UserDashboard = ({ onBack }: UserDashboardProps) => {
@@ -77,26 +94,61 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
   };
 
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
-  const [activeOrder, setActiveOrder] = useState<(typeof orders)[number] | null>(null);
+  const [activeOrder, setActiveOrder] = useState<OrderListItem | null>(null);
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<AddressForm | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [detailDialog, setDetailDialog] = useState<"points" | "coupon" | null>(null);
   const [couponFilter, setCouponFilter] = useState<"all" | "valid" | "invalid">("all");
   const [addressFormError, setAddressFormError] = useState<string | null>(null);
-  const [isAuthed, setIsAuthed] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(() => isLoggedIn());
   const [authTab, setAuthTab] = useState<"login" | "register" | "reset">("login");
   const [authForm, setAuthForm] = useState({
-    phone: "13800138001",
-    password: "123456",
-    confirm: "123456",
+    phone: "",
+    password: "",
+    confirm: "",
+    nickname: "",
   });
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const { toast } = useToast();
+  
+  // 地址相关状态
+  const [addresses, setAddresses] = useState<AddressForm[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  
+  // 积分相关状态
+  const [pointsOverview, setPointsOverview] = useState<PointsOverview>({
+    balance: 0,
+    frozen: 0,
+    total_earned: 0,
+    total_spent: 0,
+  });
+  const [pointsLogs, setPointsLogs] = useState<PointsLog[]>([]);
+  const [pointsLoading, setPointsLoading] = useState(false);
+  
+  // 优惠券相关状态
+  const [myCoupons, setMyCoupons] = useState<MyCoupon[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  
+  // 订单相关状态
+  const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  
+  // 领券中心状态
+  const [couponCenterOpen, setCouponCenterOpen] = useState(false);
+  
+  // 公告横幅状态
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
 
   const openAddAddress = () => {
     setEditingAddress({
       label: "家",
       name: "",
       phone: "",
+      province: "",
+      city: "",
+      district: "",
       detail: "",
       isDefault: false,
     });
@@ -106,48 +158,132 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
   };
 
   const openEditAddress = (addr: AddressForm, idx: number) => {
-    setEditingAddress({ ...addr });
+    setEditingAddress({ 
+      ...addr,
+      province: addr.province || '',
+      city: addr.city || '',
+      district: addr.district || '',
+    });
     setEditingIndex(idx);
     setAddressFormError(null);
     setAddressDialogOpen(true);
   };
 
-  const handleAuthSubmit = (e: FormEvent) => {
+  const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    console.log("[Auth Submit]", authTab, authForm);
-    setIsAuthed(true); // mock 登录成功后进入用户中心
+    setAuthError(null);
+    setAuthLoading(true);
+
+    try {
+      if (authTab === "login") {
+        // 登录
+        if (!authForm.phone || !authForm.password) {
+          throw new Error("请输入手机号和密码");
+        }
+        await authApi.login({ phone: authForm.phone, password: authForm.password });
+        toast({ title: "登录成功", description: "欢迎回来！" });
+        setIsAuthed(true);
+      } else if (authTab === "register") {
+        // 注册
+        if (!authForm.phone || !authForm.password) {
+          throw new Error("请输入手机号和密码");
+        }
+        if (authForm.password !== authForm.confirm) {
+          throw new Error("两次输入的密码不一致");
+        }
+        await authApi.register({
+          phone: authForm.phone,
+          password: authForm.password,
+          nickname: authForm.nickname || undefined,
+          register_channel: "H5",
+        });
+        toast({ title: "注册成功", description: "请使用新账号登录" });
+        setAuthTab("login");
+        setAuthForm(prev => ({ ...prev, password: "", confirm: "" }));
+      } else if (authTab === "reset") {
+        // 忘记密码
+        if (!authForm.phone || !authForm.password) {
+          throw new Error("请输入手机号和新密码");
+        }
+        await authApi.forgotPassword({
+          phone: authForm.phone,
+          sms_code: "123456", // 简化实现，不校验短信码
+          new_password: authForm.password,
+        });
+        toast({ title: "密码重置成功", description: "请使用新密码登录" });
+        setAuthTab("login");
+        setAuthForm(prev => ({ ...prev, password: "" }));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "操作失败";
+      setAuthError(message);
+      toast({ title: "操作失败", description: message, variant: "destructive" });
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+      toast({ title: "已退出登录" });
+    } catch (error) {
+      console.error("登出失败:", error);
+    }
     setIsAuthed(false);
     setAuthTab("login");
-    setAuthForm({ phone: "13800138001", password: "123456", confirm: "123456" });
+    setAuthForm({ phone: "", password: "", confirm: "", nickname: "" });
   };
 
-  const saveAddress = () => {
+  const saveAddress = async () => {
     if (!editingAddress) return;
     if (!editingAddress.name || !editingAddress.phone || !editingAddress.detail) {
       setAddressFormError("请填写收货人、手机号和详细地址");
       return;
     }
 
-    setAddresses((prev) => {
-      const next = [...prev];
-      if (editingAddress.isDefault) {
-        next.forEach((item) => (item.isDefault = false));
-      }
-      if (editingIndex === null) {
-        next.push(editingAddress);
-      } else {
-        next[editingIndex] = editingAddress;
-      }
-      return next;
-    });
+    try {
+      // 解析地址（简单处理，假设detail格式为"省 市 区 详细地址"）
+      const parts = editingAddress.detail.split(' ');
+      const province = parts[0] || '';
+      const city = parts[1] || '';
+      const district = parts[2] || '';
+      const detailAddr = parts.slice(3).join(' ') || editingAddress.detail;
 
-    setAddressDialogOpen(false);
-    setEditingAddress(null);
-    setEditingIndex(null);
-    setAddressFormError(null);
+      const addressData: Address = {
+        receiver_name: editingAddress.name,
+        receiver_phone: editingAddress.phone,
+        province: province,
+        city: city,
+        district: district,
+        detail: detailAddr,
+        tag: editingAddress.label,
+        is_default: editingAddress.isDefault ? 1 : 0,
+      };
+
+      if (editingAddress.id) {
+        // 修改地址
+        addressData.id = editingAddress.id;
+        await addressApi.updateAddress(addressData);
+        toast({ title: "地址修改成功" });
+      } else {
+        // 新增地址
+        await addressApi.addAddress(addressData);
+        toast({ title: "地址添加成功" });
+      }
+
+      // 重新加载地址列表
+      await fetchAddresses();
+      
+      setAddressDialogOpen(false);
+      setEditingAddress(null);
+      setEditingIndex(null);
+      setAddressFormError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "操作失败";
+      setAddressFormError(message);
+      toast({ title: "操作失败", description: message, variant: "destructive" });
+    }
   };
 
   // 防止弹窗打开时 body 右侧出现补偿空白，并记录当前计算值便于排查
@@ -180,26 +316,191 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
     email: ""
   });
 
+  // 会员等级名称映射
+  const getLevelName = (level?: number): string => {
+    const levelMap: { [key: number]: string } = {
+      1: '普通会员',
+      2: '银卡会员',
+      3: '金卡会员',
+      4: '黑金会员',
+    };
+    return levelMap[level || 1] || '普通会员';
+  };
+
   const fetchProfile = async () => {
     try {
-      const profile = await mallApi.getUserProfile();
+      const profile = await authApi.getProfile();
       setUserProfile(prev => ({
         ...prev,
         ...profile,
         // 如果后端没返回头像，保留默认
-        avatar: profile.avatar || prev.avatar
+        avatar: profile.avatar || prev.avatar,
+        // 根据level数字转换为level_name
+        level_name: profile.level_name || getLevelName(profile.level)
       }));
     } catch (error) {
       console.error("Failed to fetch profile", error);
+      // 如果获取失败（可能是token过期），清除登录状态
+      if (error instanceof Error && error.message.includes("登录")) {
+        clearCustomerToken();
+        setIsAuthed(false);
+      }
+    }
+  };
+
+  // 加载地址列表
+  const fetchAddresses = async () => {
+    try {
+      setAddressLoading(true);
+      const data = await addressApi.getAddressList();
+      const formattedAddresses: AddressForm[] = data.map(addr => ({
+        id: addr.id,
+        label: addr.tag || '其他',
+        name: addr.receiver_name,
+        phone: addr.receiver_phone,
+        province: addr.province,
+        city: addr.city,
+        district: addr.district,
+        detail: `${addr.province} ${addr.city} ${addr.district} ${addr.detail}`,
+        isDefault: addr.is_default === 1,
+      }));
+      setAddresses(formattedAddresses);
+    } catch (error) {
+      console.error("Failed to fetch addresses", error);
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  // 加载积分数据
+  const fetchPoints = async () => {
+    try {
+      setPointsLoading(true);
+      const overview = await pointsApi.getOverview();
+      setPointsOverview(overview);
+      
+      const logsData = await pointsApi.getLogs(1, 10);
+      setPointsLogs(logsData.records);
+    } catch (error) {
+      console.error("Failed to fetch points", error);
+    } finally {
+      setPointsLoading(false);
+    }
+  };
+
+  // 加载优惠券数据
+  const fetchCoupons = async () => {
+    try {
+      setCouponsLoading(true);
+      const data = await couponApi.getMyCoupons();
+      setMyCoupons(data);
+    } catch (error) {
+      console.error("Failed to fetch coupons", error);
+    } finally {
+      setCouponsLoading(false);
+    }
+  };
+
+  // 加载订单数据
+  const fetchOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      const data = await orderApi.getList(undefined, 1, 10);
+      setOrders(data.records);
+    } catch (error) {
+      console.error("Failed to fetch orders", error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // 确认收货
+  const handleConfirmReceive = async (orderNo: string) => {
+    if (!window.confirm("确认已收到货物？确认后将获得积分奖励")) {
+      return;
+    }
+    try {
+      const result = await orderApi.confirm(orderNo);
+      toast({
+        title: "确认收货成功",
+        description: `恭喜您获得 ${result.points_earned} 积分！`,
+      });
+      // 刷新数据
+      fetchOrders();
+      fetchPoints();
+    } catch (error) {
+      console.error("确认收货失败", error);
+      toast({
+        title: "确认收货失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      });
     }
   };
 
   useEffect(() => {
     if (isAuthed) {
       fetchProfile();
+      fetchAddresses();
+      fetchPoints();
+      fetchCoupons();
+      fetchOrders();
     }
   }, [isAuthed]);
-  const currentPoints = 3000;
+
+  // 优惠券状态判断函数
+  const getCouponStatus = (coupon: MyCoupon): "active" | "warning" | "disabled" => {
+    if (coupon.status === 1 || coupon.status === 2 || coupon.status === 3) {
+      return "disabled";
+    }
+    // 检查是否即将过期（3天内）
+    if (coupon.expire_time) {
+      const expireDate = new Date(coupon.expire_time);
+      const now = new Date();
+      const diffDays = Math.ceil((expireDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 3 && diffDays > 0) {
+        return "warning";
+      }
+    }
+    return "active";
+  };
+
+  // 优惠券类型名称
+  const getCouponTypeName = (type: number): string => {
+    const typeMap: { [key: number]: string } = {
+      1: '满减券',
+      2: '折扣券',
+      3: '现金券',
+    };
+    return typeMap[type] || '优惠券';
+  };
+
+  // 优惠券描述
+  const getCouponDesc = (coupon: MyCoupon): string => {
+    if (coupon.type === 1 && coupon.threshold_amount && coupon.discount_amount) {
+      return `满${coupon.threshold_amount}减${coupon.discount_amount}`;
+    }
+    if (coupon.type === 2 && coupon.discount_rate) {
+      return `${(coupon.discount_rate * 10).toFixed(1)}折优惠`;
+    }
+    if (coupon.type === 3 && coupon.discount_amount) {
+      return `立减${coupon.discount_amount}元`;
+    }
+    return '优惠券';
+  };
+
+  // 转换为展示用的优惠券格式
+  const coupons = myCoupons.map(c => ({
+    title: c.title,
+    tag: getCouponTypeName(c.type),
+    desc: getCouponDesc(c),
+    expire: c.expire_time ? c.expire_time.split('T')[0] + ' 到期' : '长期有效',
+    status: getCouponStatus(c),
+  }));
+
+  // 会员等级按累计获取积分计算，消费不降级
+  const totalEarnedPoints = pointsOverview.total_earned;
+  const currentBalance = pointsOverview.balance;
   const memberLevels = [
     { name: "普通", threshold: 0 },
     { name: "银卡", threshold: 1500 },
@@ -207,163 +508,41 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
     { name: "黑金", threshold: 6000 },
   ];
 
+  // 订单状态名称映射
+  const getOrderStatusName = (status: number): string => {
+    const statusMap: { [key: number]: string } = {
+      0: '待支付',
+      1: '待发货',
+      2: '配送中',
+      3: '待确认',  // 司机已送达，等待用户确认收货
+      4: '已完成',
+      5: '已取消',
+    };
+    return statusMap[status] || '未知';
+  };
+
+  // 统计卡片数据（需要在addresses, pointsOverview, coupons之后定义）
   const stats = [
     {
       title: "积分",
-      value: "3,000",
-      hint: "本月新增 +320",
+      value: pointsOverview.balance.toLocaleString(),
+      hint: `累计获取 ${pointsOverview.total_earned.toLocaleString()}`,
       icon: Sparkles,
       gradient: "from-indigo-500/80 to-sky-500/80",
     },
     {
       title: "优惠券",
-      value: "3 张",
-      hint: "2 张即将到期",
+      value: `${coupons.length} 张`,
+      hint: "查看优惠券详情",
       icon: Ticket,
       gradient: "from-amber-500/80 to-orange-400/80",
     },
     {
-      title: "历史订单",
-      value: "26",
-      hint: "本月 4 笔",
-      icon: History,
+      title: "收货地址",
+      value: `${addresses.length} 个`,
+      hint: "管理收货地址",
+      icon: MapPin,
       gradient: "from-blue-500/80 to-purple-500/80",
-    },
-  ];
-
-  const coupons = [
-    {
-      title: "满299减30",
-      tag: "全场通用",
-      desc: "下单立减，装修补贴券",
-      expire: "2025-12-30 到期",
-      status: "active",
-    },
-    {
-      title: "9 折会员券",
-      tag: "大件适用",
-      desc: "最高减 150 元",
-      expire: "即将到期：还剩 3 天",
-      status: "warning",
-    },
-    {
-      title: "新人现金券 5 元",
-      tag: "新人礼",
-      desc: "无门槛，胶水/辅料可用",
-      expire: "2025-12-01 到期",
-      status: "disabled",
-    },
-  ];
-
-  const [addresses, setAddresses] = useState<AddressForm[]>([
-    {
-      label: "公司",
-      name: "陈晨",
-      phone: "138****8001",
-      detail: "广东省 深圳市 南山区 科技园1号创新大厦",
-      isDefault: true,
-    },
-    {
-      label: "家",
-      name: "陈晨",
-      phone: "138****8001",
-      detail: "广东省 深圳市 龙华区 清祥路 远景中心A座",
-      isDefault: false,
-    },
-    {
-      label: "工地",
-      name: "陈晨",
-      phone: "138****8001",
-      detail: "广东省 佛山市 禅城区 季华六路88号",
-      isDefault: false,
-    },
-  ]);
-
-  const pointsLogs = [
-    { amount: "+500", reason: "订单完成奖励", order: "ORD202310270001", time: "2024-10-27 16:20" },
-    { amount: "-200", reason: "支付抵扣", order: "ORD202310270001", time: "2024-10-27 09:30" },
-    { amount: "+150", reason: "退款回退", order: "-", time: "2024-10-18 08:00" },
-  ];
-
-  const orders = [
-    {
-      orderNo: "ORD202310270001",
-      amount: "¥3,400.00",
-      status: "已完成",
-      statusCode: 3,
-      tag: "包含优惠券抵扣",
-      time: "2024-10-27 16:20",
-      dispatch: "已完成配送",
-      payChannel: "微信支付",
-      address: "广东省 深圳市 南山区 科技园1号创新大厦",
-      driver: {
-        name: "李师傅",
-        phone: "13800001111",
-        avatar: "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=200&h=200&fit=crop",
-        status: "空闲",
-      },
-      items: [
-        { name: "A8001 抛光地砖 800x800mm", qty: "100片", price: "¥2,550.00" },
-        { name: "B6002 哑光墙砖 600x600mm", qty: "50片", price: "¥900.00" },
-      ],
-      steps: [
-        { title: "待支付", time: "2024-10-27 09:20", state: "done" },
-        { title: "待发货", time: "2024-10-27 10:05", state: "done" },
-        { title: "待收货", time: "2024-10-27 14:00", state: "done" },
-        { title: "已完成", time: "2024-10-27 16:20", state: "done" },
-      ],
-    },
-    {
-      orderNo: "ORD202310270002",
-      amount: "¥1,760.00",
-      status: "待发货",
-      statusCode: 1,
-      tag: "加急配送",
-      time: "2024-10-27 11:05",
-      dispatch: "待派送",
-      payChannel: "支付宝",
-      address: "广东省 广州市 天河区 珠江新城2号",
-      driver: {
-        name: "周师傅",
-        phone: "13900002222",
-        avatar: "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?w=200&h=200&fit=crop",
-        status: "忙碌",
-      },
-      items: [
-        { name: "C9003 岩板 900x900mm", qty: "20片", price: "¥1,760.00" },
-      ],
-      steps: [
-        { title: "待支付", time: "2024-10-27 08:35", state: "done" },
-        { title: "待发货", time: "2024-10-27 11:05", state: "current" },
-        { title: "待收货", time: "", state: "pending" },
-        { title: "已完成", time: "", state: "pending" },
-      ],
-    },
-    {
-      orderNo: "ORD202310180066",
-      amount: "¥980.00",
-      status: "售后处理中",
-      statusCode: 4,
-      tag: "申请退款",
-      time: "2024-10-18 14:33",
-      dispatch: "售后处理中",
-      payChannel: "微信支付",
-      address: "广东省 佛山市 禅城区 季华六路88号",
-      driver: {
-        name: "未派单",
-        phone: "-",
-        avatar: "",
-        status: "未分配",
-      },
-      items: [
-        { name: "W3001 釉面墙砖 300x600mm", qty: "60片", price: "¥980.00" },
-      ],
-      steps: [
-        { title: "待支付", time: "2024-10-18 09:10", state: "done" },
-        { title: "待发货", time: "2024-10-18 10:00", state: "done" },
-        { title: "售后处理中", time: "2024-10-19 13:20", state: "current" },
-        { title: "已完成/关闭", time: "", state: "pending" },
-      ],
     },
   ];
 
@@ -403,17 +582,25 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                   placeholder="请输入手机号"
                 />
               </div>
-              {authTab !== "reset" && (
+              {authTab === "register" && (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600">密码</p>
+                  <p className="text-sm text-gray-600">昵称（可选）</p>
                   <Input
-                    type="password"
-                    value={authForm.password}
-                    onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))}
-                    placeholder="请输入密码"
+                    value={authForm.nickname}
+                    onChange={(e) => setAuthForm((p) => ({ ...p, nickname: e.target.value }))}
+                    placeholder="请输入昵称"
                   />
                 </div>
               )}
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">{authTab === "reset" ? "新密码" : "密码"}</p>
+                <Input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))}
+                  placeholder={authTab === "reset" ? "请输入新密码" : "请输入密码"}
+                />
+              </div>
               {authTab === "register" && (
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">确认密码</p>
@@ -425,21 +612,32 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                   />
                 </div>
               )}
+              {authError && (
+                <p className="text-sm text-rose-500">{authError}</p>
+              )}
               <div className="flex gap-3">
-                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1">
-                  {authTab === "login" && "登录"}
-                  {authTab === "register" && "注册"}
-                  {authTab === "reset" && "重置密码"}
+                <Button 
+                  type="submit" 
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1"
+                  disabled={authLoading}
+                >
+                  {authLoading ? "处理中..." : (
+                    authTab === "login" ? "登录" :
+                    authTab === "register" ? "注册" : "重置密码"
+                  )}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setAuthForm({ phone: "", password: "", confirm: "" })}
+                  onClick={() => {
+                    setAuthForm({ phone: "", password: "", confirm: "", nickname: "" });
+                    setAuthError(null);
+                  }}
                 >
                   清空
                 </Button>
               </div>
-              <p className="text-xs text-gray-500">示例账号：13800138001 / 123456（免验证码）</p>
+              <p className="text-xs text-gray-500">测试提示：先注册账号，再登录</p>
             </form>
           </CardContent>
           <div className="flex items-center justify-between px-6 pb-6">
@@ -464,7 +662,7 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
           <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16 ring-4 ring-white/70 shadow-lg">
-                <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
+                <AvatarImage src={userProfile.avatar} alt={userProfile.nickname} />
                 <AvatarFallback>CC</AvatarFallback>
               </Avatar>
               <div>
@@ -524,6 +722,39 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
           </CardHeader>
         </Card>
 
+        {/* 活动公告横幅 */}
+        {showAnnouncement && (
+          <Card className="border-0 bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500 text-white shadow-lg overflow-hidden">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <Volume2 className="h-5 w-5 shrink-0 animate-pulse" />
+                  <span className="font-medium">🎉 限时抢券：新用户专享优惠券限量发放中，先到先得！</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-7"
+                    onClick={() => setCouponCenterOpen(true)}
+                  >
+                    <Gift className="h-3 w-3 mr-1" />
+                    立即领取
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-white/80 hover:text-white hover:bg-white/20"
+                    onClick={() => setShowAnnouncement(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid md:grid-cols-4 gap-4">
           {stats.map((item) => (
             <Card
@@ -540,6 +771,21 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
               </CardContent>
             </Card>
           ))}
+          
+          {/* 领券中心入口 */}
+          <Card
+            className="border-0 bg-gradient-to-br from-rose-500/80 to-pink-500/80 text-white shadow-lg cursor-pointer hover:scale-105 transition-transform"
+            onClick={() => setCouponCenterOpen(true)}
+          >
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-white/80">领券中心</p>
+                <Gift className="h-5 w-5" />
+              </div>
+              <p className="text-3xl font-bold mt-2">抢券</p>
+              <p className="text-xs text-white/80 mt-1">限时优惠，先到先得</p>
+            </CardContent>
+          </Card>
         </div>
 
 
@@ -562,52 +808,49 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">当前积分</p>
-                    <p className="text-3xl font-bold text-indigo-700">3,000</p>
+                    <p className="text-3xl font-bold text-indigo-700">{pointsOverview.balance.toLocaleString()}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-600">可抵扣</p>
-                    <p className="text-xl font-semibold text-indigo-700">¥300</p>
+                    <p className="text-xl font-semibold text-indigo-700">¥{(pointsOverview.balance / 10).toFixed(0)}</p>
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>本月目标 · 3,500</span>
-                    <span>完成 68%</span>
+                    <span>累计获取 · {pointsOverview.total_earned.toLocaleString()}</span>
+                    <span>累计消耗 {pointsOverview.total_spent.toLocaleString()}</span>
                   </div>
-                  <Progress value={68} />
+                  <Progress value={pointsOverview.total_earned > 0 ? (pointsOverview.balance / pointsOverview.total_earned) * 100 : 0} />
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm text-gray-500">
-                  <span>最新获取</span>
-                  <span>更新时间：今日 09:32</span>
+                  <span>最近变动</span>
+                  <span>{pointsLogs.length > 0 ? `共 ${pointsLogs.length} 条记录` : '暂无记录'}</span>
                 </div>
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold">
-                        +500
+                  {pointsLogs.slice(0, 2).map((log) => (
+                    <div key={log.id} className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-2.5">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-semibold text-sm ${
+                          log.change_amount >= 0 
+                            ? 'bg-indigo-100 text-indigo-700' 
+                            : 'bg-pink-100 text-pink-700'
+                        }`}>
+                          {log.change_amount >= 0 ? `+${log.change_amount}` : log.change_amount}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">{log.remark || getSourceTypeName(log.source_type)}</p>
+                          <p className="text-xs text-gray-500">余额：{log.balance_after}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800">订单完成奖励</p>
-                        <p className="text-xs text-gray-500">ORD202310270001</p>
-                      </div>
+                      <span className="text-sm text-gray-500">{log.create_time?.split(' ')[0]}</span>
                     </div>
-                    <span className="text-sm text-gray-500">2024-10-27</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-pink-100 text-pink-700 flex items-center justify-center font-semibold">
-                        -200
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">支付抵扣</p>
-                        <p className="text-xs text-gray-500">订单积分抵现</p>
-                      </div>
-                    </div>
-                    <span className="text-sm text-gray-500">2024-10-27</span>
-                  </div>
+                  ))}
+                  {pointsLogs.length === 0 && (
+                    <div className="text-center text-gray-400 py-4 text-sm">暂无积分变动记录</div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -694,35 +937,61 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => (
-                      <TableRow
-                        key={order.orderNo}
-                        className="hover:bg-gray-50/70 cursor-pointer"
-                        onClick={() => {
-                          setActiveOrder(order);
-                          setOrderDialogOpen(true);
-                        }}
-                      >
-                        <TableCell className="pl-6 font-medium text-gray-900">
-                          {order.orderNo}
-                        </TableCell>
-                        <TableCell className="text-gray-900 font-semibold">
-                          {order.amount}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="bg-teal-50 border-teal-200 text-teal-700"
-                          >
-                            {order.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-gray-500">{order.time}</TableCell>
-                        <TableCell className="pr-6 text-right text-gray-500">
-                          {order.tag}
+                    {orders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                          暂无订单记录
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      orders.map((order) => (
+                        <TableRow
+                          key={order.order_no}
+                          className="hover:bg-gray-50/70 cursor-pointer"
+                          onClick={() => {
+                            setActiveOrder(order);
+                            setOrderDialogOpen(true);
+                          }}
+                        >
+                          <TableCell className="pl-6 font-medium text-gray-900">
+                            {order.order_no}
+                          </TableCell>
+                          <TableCell className="text-gray-900 font-semibold">
+                            ¥{order.payable_amount?.toFixed(2) || '0.00'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={`${
+                                order.status === 4 ? 'bg-teal-50 border-teal-200 text-teal-700' :
+                                order.status === 3 ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                                order.status === 5 ? 'bg-gray-100 border-gray-200 text-gray-500' :
+                                'bg-amber-50 border-amber-200 text-amber-700'
+                              }`}
+                            >
+                              {getOrderStatusName(order.status)}
+                            </Badge>
+                            {order.status === 3 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="ml-2 text-xs h-6 border-green-500 text-green-600 hover:bg-green-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConfirmReceive(order.order_no);
+                                }}
+                              >
+                                确认收货
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-gray-500">{order.create_time?.split(' ')[0] || '-'}</TableCell>
+                          <TableCell className="pr-6 text-right text-gray-500">
+                            {order.items?.length || 0} 件商品
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -794,24 +1063,25 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">当前积分</p>
-                  <p className="text-2xl font-bold text-indigo-700">{currentPoints.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-indigo-700">{currentBalance.toLocaleString()}</p>
                 </div>
                 <div className="text-right text-sm text-gray-600">
                   下一级：{
-                    memberLevels.find((l) => currentPoints < l.threshold)?.name ?? "已是最高等级"
+                    memberLevels.find((l) => totalEarnedPoints < l.threshold)?.name ?? "已是最高等级"
                   }
                 </div>
               </div>
               <div className="mt-3 space-y-2">
                 {memberLevels.map((level, idx) => {
-                  const progress = level.threshold === 0 ? 100 : Math.min(100, (currentPoints / level.threshold) * 100);
+                  // 会员等级按累计获取积分判断
+                  const progress = level.threshold === 0 ? 100 : Math.min(100, (totalEarnedPoints / level.threshold) * 100);
                   const isCurrentLevel =
                     idx === memberLevels.length - 1
-                      ? currentPoints >= level.threshold
-                      : currentPoints >= level.threshold && currentPoints < memberLevels[idx + 1].threshold;
+                      ? totalEarnedPoints >= level.threshold
+                      : totalEarnedPoints >= level.threshold && totalEarnedPoints < memberLevels[idx + 1].threshold;
                   const nextThreshold = memberLevels[idx + 1]?.threshold;
                   const gap =
-                    nextThreshold && currentPoints < nextThreshold ? nextThreshold - currentPoints : 0;
+                    nextThreshold && totalEarnedPoints < nextThreshold ? nextThreshold - totalEarnedPoints : 0;
                   return (
                     <div key={level.name} className="rounded-xl bg-white/70 border border-indigo-100 p-3 space-y-2">
                       <div className="flex items-center justify-between">
@@ -839,18 +1109,24 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
             </div>
           </div>
           <div className="space-y-3">
-            {pointsLogs.map((log) => (
-              <div key={`${log.reason}-${log.time}`} className="rounded-xl border border-gray-100 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{log.reason}</p>
-                  <p className="text-xs text-gray-500">关联单：{log.order}</p>
+            {pointsLogs.length === 0 ? (
+              <div className="text-center text-gray-500 py-4">暂无积分记录</div>
+            ) : (
+              pointsLogs.map((log) => (
+                <div key={log.id} className="rounded-xl border border-gray-100 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{log.remark || getSourceTypeName(log.source_type)}</p>
+                    <p className="text-xs text-gray-500">变动后余额：{log.balance_after}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${log.change_amount >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                      {log.change_amount >= 0 ? `+${log.change_amount}` : log.change_amount}
+                    </p>
+                    <p className="text-xs text-gray-500">{log.create_time?.split('T')[0]}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className={`text-sm font-bold ${log.amount.startsWith("+") ? "text-emerald-600" : "text-rose-500"}`}>{log.amount}</p>
-                  <p className="text-xs text-gray-500">{log.time}</p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDetailDialog(null)}>关闭</Button>
@@ -981,11 +1257,15 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
             </div>
             <div className="flex items-center justify-between gap-3">
               <DialogDescription className="text-gray-500">
-                {activeOrder ? `${activeOrder.orderNo} · ${activeOrder.time}` : ""}
+                {activeOrder ? `${activeOrder.order_no} · ${activeOrder.create_time}` : ""}
               </DialogDescription>
               {activeOrder ? (
-                <Badge variant="outline" className="text-teal-700 border-teal-200 bg-teal-50">
-                  {activeOrder.status}
+                <Badge variant="outline" className={`${
+                  activeOrder.status === 3 ? 'text-teal-700 border-teal-200 bg-teal-50' :
+                  activeOrder.status === 4 || activeOrder.status === 5 ? 'text-gray-500 border-gray-200 bg-gray-50' :
+                  'text-amber-700 border-amber-200 bg-amber-50'
+                }`}>
+                  {getOrderStatusName(activeOrder.status)}
                 </Badge>
               ) : null}
             </div>
@@ -993,100 +1273,46 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
 
           {activeOrder && (
             <div className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
-                <Card className="border border-gray-100">
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">订单金额</span>
-                      <span className="text-xl font-bold text-gray-900">{activeOrder.amount}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">支付渠道</span>
-                      <span className="text-sm text-gray-700">{activeOrder.payChannel}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">配送状态</span>
-                      <span className="text-sm text-gray-700">{activeOrder.dispatch}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border border-gray-100">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      {activeOrder.driver.avatar ? (
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={activeOrder.driver.avatar} alt={activeOrder.driver.name} />
-                          <AvatarFallback>DR</AvatarFallback>
-                        </Avatar>
-                      ) : (
-                        <Avatar className="h-12 w-12">
-                          <AvatarFallback>DR</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900">接单司机</p>
-                        <p className="text-sm text-gray-700">{activeOrder.driver.name}</p>
-                        <p className="text-xs text-gray-500">{activeOrder.driver.phone}</p>
-                      </div>
-                      <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700">
-                        {activeOrder.driver.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-gray-700">
-                      <MapPin className="h-4 w-4 text-rose-500 mt-0.5" />
-                      <span>{activeOrder.address}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card className="border border-gray-100">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">订单金额</span>
+                    <span className="text-xl font-bold text-gray-900">¥{activeOrder.payable_amount?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">订单状态</span>
+                    <span className="text-sm text-gray-700">{getOrderStatusName(activeOrder.status)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500">下单时间</span>
+                    <span className="text-sm text-gray-700">{activeOrder.create_time || '-'}</span>
+                  </div>
+                </CardContent>
+              </Card>
 
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <Truck className="h-4 w-4 text-indigo-500" />
-                  订单状态（参考 SQL：0待支付 1待发货 2待收货 3已完成 4已取消 5已关闭）
+                  商品明细
                 </h4>
                 <div className="space-y-2">
-                  {activeOrder.steps.map((step, idx) => {
-                    const isDone = step.state === "done";
-                    const isCurrent = step.state === "current";
-                    return (
-                      <div key={step.title} className="flex items-start gap-3 rounded-xl px-2 py-1">
-                        <div className="mt-0.5 shrink-0">
-                          {isDone ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                          ) : isCurrent ? (
-                            <Clock className="h-4 w-4 text-amber-500" />
-                          ) : (
-                            <Circle className="h-4 w-4 text-gray-300" />
-                          )}
-                        </div>
-                        <div className="flex-1 flex items-center justify-between">
-                          <p className="text-sm font-medium text-gray-900">{step.title}</p>
-                          <p className="text-xs text-gray-500">{step.time}</p>
-                        </div>
+                  {activeOrder.items?.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3">
+                      {item.picture && (
+                        <img src={item.picture} alt={item.model} className="w-12 h-12 rounded object-cover" />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{item.model}</p>
+                        <p className="text-xs text-gray-500">数量: {item.amount}</p>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
+                  {(!activeOrder.items || activeOrder.items.length === 0) && (
+                    <p className="text-sm text-gray-500 text-center py-4">暂无商品信息</p>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">商品明细</h4>
-                <div className="space-y-2">
-                  {activeOrder.items.map((item) => (
-                    <div
-                      key={item.name}
-                      className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                        <p className="text-xs text-gray-500">{item.qty}</p>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-900">{item.price}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -1102,6 +1328,11 @@ const UserDashboard = ({ onBack }: UserDashboardProps) => {
         onOpenChange={setProfileDialogOpen}
         currentUser={userProfile}
         onSuccess={fetchProfile}
+      />
+      
+      <CouponCenter
+        isOpen={couponCenterOpen}
+        onClose={() => setCouponCenterOpen(false)}
       />
     </section>
   );

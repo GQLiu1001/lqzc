@@ -19,6 +19,15 @@ public interface OrderInfoService extends IService<OrderInfo> {
     IPage<OrderInfoRecords> getOrderList(IPage<OrderInfoRecords> page, Integer size, String startStr, String endStr, String customerPhone);
 
     void changeDispatchStatus(Long id, Integer status);
+    
+    /**
+     * 更改派送状态并确认支付
+     * @param id 订单ID
+     * @param status 派送状态
+     * @param payMethod 支付方式 wechat/alipay
+     * @param couponId 优惠券ID（可选）
+     */
+    void changeDispatchStatusWithPayment(Long id, Integer status, String payMethod, Long couponId);
 
     void newOrder(OrderNewReq request);
 
@@ -35,4 +44,11 @@ public interface OrderInfoService extends IService<OrderInfo> {
     Boolean robNewOrder(Long id, String orderNo);
 
     void changeOrderDispatchStatus(String orderNo, int i);
+    
+    /**
+     * 确认收货并计算积分
+     * @param orderId 订单ID
+     * @param isAdmin 是否为后台操作
+     */
+    void confirmReceive(Long orderId, boolean isAdmin);
 }

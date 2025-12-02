@@ -43,9 +43,43 @@ export const deleteOrder = (orderId: number): Promise<ApiResponse<any>> => {
     return axios.delete(`/orders/delete/${orderId}`);
 };
 
-// 更改订单派送状态
-export const updateDispatchStatus = (id: number, status: number): Promise<ApiResponse<any>> => {
-    return axios.put(`/orders/change/dispatch-status/${id}/${status}`);
+// 更改订单派送状态（并确认支付和使用优惠券）
+export const updateDispatchStatus = (id: number, status: number, payMethod?: string, couponId?: number): Promise<ApiResponse<any>> => {
+    const params: any = {};
+    if (payMethod) {
+        params.pay_method = payMethod;
+    }
+    if (couponId) {
+        params.coupon_id = couponId;
+    }
+    return axios.put(`/orders/change/dispatch-status/${id}/${status}`, null, { params });
+};
+
+// 获取用户可用优惠券
+export interface AvailableCoupon {
+    coupon_id: number;
+    title: string;
+    type: number;
+    threshold_amount: number | null;
+    discount_amount: number | null;
+    discount_rate: number | null;
+    max_discount: number | null;
+    expire_time: string;
+    calculated_discount: number | null;
+    usable: boolean;
+}
+
+export const getAvailableCoupons = (customerPhone: string, orderAmount?: number): Promise<ApiResponse<AvailableCoupon[]>> => {
+    const params: any = { customerPhone };
+    if (orderAmount !== undefined) {
+        params.orderAmount = orderAmount;
+    }
+    return axios.get('/admin/coupon/available', { params });
+};
+
+// 后台确认收货（同时发放积分）
+export const confirmReceive = (orderId: number): Promise<ApiResponse<any>> => {
+    return axios.post(`/orders/confirm-receive/${orderId}`);
 };
 
 // 派送订单

@@ -59,7 +59,13 @@
         </el-table-column>
         <el-table-column prop="nickname" label="昵称" width="120" />
         <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="level_name" label="会员等级" width="120" />
+        <el-table-column label="会员等级" width="120">
+          <template #default="{ row }">
+            <el-tag :type="getLevelTagType(row.level)">
+              {{ getLevelName(row.level) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">
@@ -245,6 +251,28 @@ const statusForm = reactive<UpdateCustomerStatusRequest>({
 
 const submitting = ref(false);
 
+// 会员等级名称映射
+const getLevelName = (level: number): string => {
+  const levelMap: Record<number, string> = {
+    1: '普通会员',
+    2: '银卡会员',
+    3: '金卡会员',
+    4: '钻石会员'
+  };
+  return levelMap[level] || '未知';
+};
+
+// 会员等级标签类型映射
+const getLevelTagType = (level: number): string => {
+  const typeMap: Record<number, string> = {
+    1: 'info',
+    2: '',
+    3: 'warning',
+    4: 'danger'
+  };
+  return typeMap[level] || 'info';
+};
+
 // 查询客户列表
 const fetchCustomerList = async () => {
   loading.value = true;
@@ -328,7 +356,7 @@ const handleCreateSubmit = async () => {
 
 // 查看详情
 const handleViewDetail = (id: number) => {
-  router.push(`/customer/detail/${id}`);
+  router.push(`/dashboard/customer/detail/${id}`);
 };
 
 // 切换状态

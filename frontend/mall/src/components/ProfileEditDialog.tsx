@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { mallApi, UserProfile } from "@/lib/api";
+import { authApi, UserProfile } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -52,7 +52,7 @@ export function ProfileEditDialog({
         e.preventDefault();
         setLoading(true);
         try {
-            await mallApi.updateProfile(formData);
+            await authApi.updateProfile(formData);
             toast({
                 title: "修改成功",
                 description: "个人信息已更新",

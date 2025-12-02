@@ -4,21 +4,62 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lqzc.mapper.CustomerCouponMapper">
 
+    <!-- 基础结果映射 -->
     <resultMap id="BaseResultMap" type="com.lqzc.common.domain.CustomerCoupon">
-            <id property="id" column="id" />
-            <result property="customerId" column="customer_id" />
-            <result property="templateId" column="template_id" />
-            <result property="status" column="status" />
-            <result property="code" column="code" />
-            <result property="obtainedChannel" column="obtained_channel" />
-            <result property="usedOrderId" column="used_order_id" />
-            <result property="useTime" column="use_time" />
-            <result property="expireTime" column="expire_time" />
-            <result property="createTime" column="create_time" />
-            <result property="updateTime" column="update_time" />
+        <id property="id" column="id"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="templateId" column="template_id"/>
+        <result property="status" column="status"/>
+        <result property="code" column="code"/>
+        <result property="obtainedChannel" column="obtained_channel"/>
+        <result property="usedOrderId" column="used_order_id"/>
+        <result property="useTime" column="use_time"/>
+        <result property="expireTime" column="expire_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
     </resultMap>
 
+    <!-- 发放记录结果映射 -->
+    <resultMap id="CouponRecordResultMap" type="com.lqzc.common.resp.CouponRecordResp">
+        <id property="id" column="id"/>
+        <result property="templateId" column="template_id"/>
+        <result property="customerPhone" column="customer_phone"/>
+        <result property="status" column="status"/>
+        <result property="useTime" column="use_time"/>
+    </resultMap>
+
+    <!-- 基础列定义 -->
     <sql id="Base_Column_List">
-        id,customer_id,template_id,status,code,obtained_channel,used_order_id,use_time,expire_time,create_time,update_time
+        id, customer_id, template_id, status, code, obtained_channel,
+        used_order_id, use_time, expire_time, create_time, update_time
     </sql>
+
+    <!--
+        分页查询优惠券发放记录
+        关联customer_user表获取客户手机号
+        支持条件筛选：模板ID、客户手机号、使用状态
+    -->
+    <select id="selectCouponRecordList" resultMap="CouponRecordResultMap">
+        SELECT
+            cc.id,
+            cc.template_id,
+            cu.phone AS customer_phone,
+            cc.status,
+            cc.use_time
+        FROM customer_coupon cc
+        LEFT JOIN customer_user cu ON cc.customer_id = cu.id
+        <where>
+            <if test="templateId != null">
+                AND cc.template_id = #{templateId}
+            </if>
+            <if test="customerPhone != null and customerPhone != ''">
+                AND cu.phone = #{customerPhone}
+            </if>
+            <if test="status != null">
+                AND cc.status = #{status}
+            </if>
+        </where>
+        ORDER BY cc.create_time DESC
+    </select>
+
 </mapper>

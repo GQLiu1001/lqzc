@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Minus, Plus, Loader2 } from "lucide-react";
-import { mallApi, CartItem, Product } from "@/lib/api";
+import { Trash2, Minus, Plus, Loader2, MapPin } from "lucide-react";
+import { mallApi, cartApi, authApi, addressApi, CartItem, Product, Address, isLoggedIn } from "@/lib/api";
 
 // 增强的购物车项，包含完整商品信息和前端计算的价格
 interface EnhancedCartItem extends CartItem {
@@ -31,18 +32,83 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
     name: "",
     phone: "",
     address: "",
+    addressId: "",
     notes: ""
   });
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
   const { toast } = useToast();
 
-  // 获取购物车数据并计算价格
+  // 获取用户信息和地址列表
+  const fetchUserAndAddresses = async () => {
+    if (!isLoggedIn()) return;
+    
+    try {
+      setAddressLoading(true);
+      
+      // 并行获取用户信息和地址列表
+      const [profile, addressList] = await Promise.all([
+        authApi.getProfile(),
+        addressApi.getAddressList()
+      ]);
+      
+      setAddresses(addressList);
+      
+      // 找到默认地址
+      const defaultAddress = addressList.find(addr => addr.is_default === 1);
+      
+      // 自动填充表单
+      setOrderForm(prev => ({
+        ...prev,
+        name: defaultAddress?.receiver_name || profile.nickname || "",
+        phone: defaultAddress?.receiver_phone || profile.phone || "",
+        address: defaultAddress 
+          ? `${defaultAddress.province}${defaultAddress.city}${defaultAddress.district}${defaultAddress.detail}`
+          : "",
+        addressId: defaultAddress?.id?.toString() || ""
+      }));
+    } catch (error) {
+      console.error("获取用户信息失败:", error);
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  // 选择地址时更新表单
+  const handleAddressSelect = (addressId: string) => {
+    const selectedAddress = addresses.find(addr => addr.id?.toString() === addressId);
+    if (selectedAddress) {
+      setOrderForm(prev => ({
+        ...prev,
+        name: selectedAddress.receiver_name,
+        phone: selectedAddress.receiver_phone,
+        address: `${selectedAddress.province}${selectedAddress.city}${selectedAddress.district}${selectedAddress.detail}`,
+        addressId: addressId
+      }));
+    }
+  };
+
+  // 获取购物车数据并计算价格（需要登录）
   const fetchCart = async () => {
+    // 未登录时不获取购物车
+    if (!isLoggedIn()) {
+      setCartItems([]);
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       
       // 获取后端购物车数据
-      const backendCartItems = await mallApi.getCart();
+      const backendCartItems = await cartApi.getCart();
+      
+      // 安全处理空购物车
+      if (!backendCartItems || !Array.isArray(backendCartItems) || backendCartItems.length === 0) {
+        setCartItems([]);
+        return;
+      }
       
       // 如果还没有商品信息，先获取
       let products = allProducts;
@@ -90,7 +156,7 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
 
     try {
       setUpdating(model);
-      await mallApi.changeCart({ model, amount: newAmount });
+      await cartApi.changeCart({ model, amount: newAmount });
       await fetchCart(); // 重新获取购物车数据
     } catch (error) {
       console.error('更新购物车失败:', error);
@@ -108,7 +174,7 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
   const removeCartItem = async (model: string) => {
     try {
       setUpdating(model);
-      await mallApi.deleteCartItem({ model });
+      await cartApi.deleteCartItem({ model });
       await fetchCart(); // 重新获取购物车数据
       toast({
         title: "已移除商品",
@@ -151,7 +217,7 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
       
       const totalPrice = cartItems.reduce((sum, item) => sum + (item.calculated_subtotal || 0), 0);
       
-      await mallApi.createOrder({
+      await cartApi.createOrder({
         customer_phone: orderForm.phone,
         total_price: totalPrice,
         items: cartItems.map(item => ({
@@ -172,6 +238,7 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
         name: "",
         phone: "",
         address: "",
+        addressId: "",
         notes: ""
       });
       setShowOrderForm(false);
@@ -196,11 +263,18 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
     }
   }, [isOpen]);
 
+  // 进入订单表单时获取用户信息和地址
+  useEffect(() => {
+    if (showOrderForm) {
+      fetchUserAndAddresses();
+    }
+  }, [showOrderForm]);
+
   const totalPrice = cartItems.reduce((sum, item) => sum + (item.calculated_subtotal || 0), 0);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] bg-white/95 backdrop-blur overflow-visible">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800">
             购物车 ({cartItems.length}件商品)
@@ -317,13 +391,44 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
 
         {/* 订单表单 */}
         {showOrderForm && (
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
             <div className="border-b pb-4">
               <h3 className="font-medium text-gray-800 mb-2">订单信息</h3>
               <p className="text-sm text-gray-600">
                 共 {cartItems.length} 件商品，总计 ¥{(totalPrice || 0).toFixed(2)}
               </p>
             </div>
+
+            {/* 地址选择 */}
+            {addresses.length > 0 && (
+              <div>
+                <Label className="flex items-center gap-1 mb-2">
+                  <MapPin className="h-4 w-4 text-rose-500" />
+                  选择收货地址
+                </Label>
+                <Select value={orderForm.addressId} onValueChange={handleAddressSelect}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={addressLoading ? "加载中..." : "选择已保存的地址"} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                    {addresses.map((addr) => (
+                      <SelectItem key={addr.id} value={addr.id?.toString() || ""}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{addr.receiver_name}</span>
+                          <span className="text-gray-500">{addr.receiver_phone}</span>
+                          {addr.is_default === 1 && (
+                            <span className="text-xs bg-blue-100 text-blue-600 px-1 rounded">默认</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate max-w-[300px]">
+                          {addr.province}{addr.city}{addr.district}{addr.detail}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -355,7 +460,7 @@ export function CartDialog({ isOpen, onClose }: CartDialogProps) {
               <Textarea
                 id="order-address"
                 value={orderForm.address}
-                onChange={(e) => setOrderForm(prev => ({ ...prev, address: e.target.value }))}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, address: e.target.value, addressId: "" }))}
                 placeholder="请输入详细的收货地址"
                 required
               />

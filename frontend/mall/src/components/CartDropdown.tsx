@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ShoppingCart, Trash2, Minus, Plus, Loader2 } from "lucide-react";
-import { mallApi, CartItem, Product } from "@/lib/api";
+import { mallApi, cartApi, CartItem, Product, isLoggedIn } from "@/lib/api";
 
 // 增强的购物车项，包含完整商品信息和前端计算的价格
 interface EnhancedCartItem extends CartItem {
@@ -42,13 +42,20 @@ export function CartDropdown({ onOrderClick, cartItems: externalCartItems, onCar
     }
   };
 
-  // 获取购物车数据并计算价格
+  // 获取购物车数据并计算价格（需要登录）
   const fetchCart = async () => {
+    // 未登录时不获取购物车
+    if (!isLoggedIn()) {
+      setCartItems([]);
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       
       // 获取后端购物车数据
-      const backendCartItems = await mallApi.getCart();
+      const backendCartItems = await cartApi.getCart();
       
       // 安全处理空购物车
       if (!backendCartItems || !Array.isArray(backendCartItems) || backendCartItems.length === 0) {
@@ -101,7 +108,7 @@ export function CartDropdown({ onOrderClick, cartItems: externalCartItems, onCar
 
     try {
       setUpdating(model);
-      await mallApi.changeCart({ model, amount: newAmount });
+      await cartApi.changeCart({ model, amount: newAmount });
       await fetchCart(); // 重新获取购物车数据
       onCartChange?.(); // 通知主页面购物车已变化
     } catch (error) {
@@ -120,7 +127,7 @@ export function CartDropdown({ onOrderClick, cartItems: externalCartItems, onCar
   const removeCartItem = async (model: string) => {
     try {
       setUpdating(model);
-      await mallApi.deleteCartItem({ model });
+      await cartApi.deleteCartItem({ model });
       await fetchCart(); // 重新获取购物车数据
       toast({
         title: "已移除商品",

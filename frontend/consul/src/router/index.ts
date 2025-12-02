@@ -121,6 +121,24 @@ const router = createRouter({
           component: () => import('@/views/customer/CustomerDetail.vue'),
           props: true
         },
+        // 优惠券管理
+        {
+          path: 'coupon/list',
+          name: 'coupon-list',
+          component: () => import('@/views/coupon/CouponList.vue'),
+        },
+        // 积分管理
+        {
+          path: 'points/list',
+          name: 'points-list',
+          component: () => import('@/views/points/PointsList.vue'),
+        },
+        // 会员等级管理
+        {
+          path: 'member/level',
+          name: 'member-level',
+          component: () => import('@/views/member/MemberLevelList.vue'),
+        },
       ],
     },
   ],

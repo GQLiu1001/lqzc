@@ -10,7 +10,7 @@ import { CartDropdown } from "@/components/CartDropdown";
 import { Toaster } from "@/components/ui/toaster";
 import AIAssistant from "@/components/AIAssistant";
 import { useToast } from "@/hooks/use-toast";
-import { mallApi, Product, surfaceMap, categoryMap } from "@/lib/api";
+import { mallApi, cartApi, Product, surfaceMap, categoryMap, isLoggedIn } from "@/lib/api";
 import UserDashboard from "@/components/UserDashboard";
 
 const Index = () => {
@@ -52,10 +52,16 @@ const Index = () => {
     "全部", "抛光", "哑光", "釉面", "通体大理石", "微晶石", "岩板"
   ];
 
-  // 获取购物车数据
+  // 获取购物车数据（需要登录）
   const fetchCartItems = async () => {
+    // 未登录时不获取购物车
+    if (!isLoggedIn()) {
+      setCartItems({});
+      return;
+    }
+    
     try {
-      const cartData = await mallApi.getCart();
+      const cartData = await cartApi.getCart();
       const cartMap: { [key: string]: number } = {};
       
       // 安全处理购物车数据，防止null或undefined
@@ -278,14 +284,25 @@ const Index = () => {
     }
   };
 
-  // 添加到购物车或更新数量
+  // 添加到购物车或更新数量（需要登录）
   const addToCart = async (product: Product) => {
+    // 检查是否登录
+    if (!isLoggedIn()) {
+      toast({
+        title: "请先登录",
+        description: "登录后即可使用购物车功能",
+        variant: "destructive",
+      });
+      setActiveSection("user"); // 跳转到用户中心登录
+      return;
+    }
+    
     const quantity = getProductQuantity(product.model);
     const inCart = isInCart(product.model);
     
     try {
       setAddingToCart(product.model);
-      await mallApi.changeCart({
+      await cartApi.changeCart({
         model: product.model,
         amount: quantity
       });

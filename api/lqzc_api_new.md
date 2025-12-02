@@ -19,6 +19,25 @@
 }
 ```
 
+### 1.3. 关键技术设计
+
+#### 1.3.1. 抢券防超发
+- 采用 **Redis + Lua脚本** 实现原子性抢券操作
+- Lua脚本逻辑：检查库存 → 检查用户限领 → 扣减库存 → 记录领取
+- Redis Key设计：
+  - `coupon:stock:{templateId}` - 库存余量
+  - `coupon:user:received:{templateId}:{customerId}` - 用户已领数量
+
+#### 1.3.2. 订单库存策略
+- **下单仅占位**：创建订单时不扣减数据库库存，仅在Redis中设置占位标记
+- **支付扣库存**：支付成功后使用 **MyBatis-Plus乐观锁**（@Version）扣减库存
+- **超时释放**：订单超时未支付，延迟队列自动释放占位（当前简化为Redis TTL）
+- 乐观锁实现：`inventory_item.version` 和 `order_info.version` 字段
+
+#### 1.3.3. 认证方式
+- C端用户登录返回UUID Token，存储在Redis（key: `customer:token:{uuid}`）
+- 有效期7天，请求时通过Header `X-Customer-Token` 传递
+
 ---
 
 ## 2. 客户账户 (Customer)
@@ -138,7 +157,7 @@
 
 ### 2.6. 忘记密码（短信验证）
 - **Endpoint**: `POST /mall/customer/forgot-password`
-- **描述**: 手机号 + 短信验证码重置密码，无需旧密码。
+- **描述**: 手机号 + 短信验证码重置密码，无需旧密码。（简化实现：不校验短信验证码）
 - **请求体**:
   ```json
   {
@@ -147,6 +166,19 @@
     "new_password": "newpassword123"
   }
   ```
+- **成功响应**:
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": null
+  }
+  ```
+
+### 2.7. 客户登出
+- **Endpoint**: `POST /mall/customer/logout`
+- **描述**: 客户登出，清除服务端token。
+- **请求头**: `X-Customer-Token: <token>`
 - **成功响应**:
   ```json
   {
@@ -420,7 +452,7 @@
 
 ### 6.3. 订单列表
 - **Endpoint**: `GET /mall/order/list`
-- **请求参数**: `status` (可选，缺省=全部；取值 0=待支付, 1=待发货, 2=待收货, 3=已完成, 4=已取消, 5=已关闭), `current`, `size`
+- **请求参数**: `status` (可选，缺省=全部；取值 0=待支付, 1=待发货, 2=配送中, 3=待确认, 4=已完成, 5=已取消), `current`, `size`
 - **成功响应**:
   ```json
   {
@@ -535,7 +567,9 @@
 
 ### 6.6. 确认收货
 - **Endpoint**: `POST /mall/order/confirm/{orderNo}`
-- **描述**: 用户确认收货，订单完成，触发积分发放。
+- **描述**: 用户确认收货，订单状态从"待确认(3)"变为"已完成(4)"，触发积分发放。
+- **积分计算规则**: 1元 = 1积分（实付金额，去除小数点向下取整）
+- **前置条件**: 订单状态必须为 3（待确认，即司机已送达）
 - **成功响应**:
   ```json
   {
@@ -673,7 +707,17 @@
     "code": 200,
     "message": "success",
     "data": {
-      "base_info": { "id": 1, "nickname": "陈晨", "phone": "138..." },
+      "base_info": { 
+        "id": 1, 
+        "nickname": "陈晨", 
+        "phone": "13800138001",
+        "avatar": "...",
+        "level": 2,
+        "level_name": "银卡会员",
+        "status": 1,
+        "register_channel": "H5",
+        "create_time": "2024-01-01 12:00:00"
+      },
       "assets": {
         "points_balance": 3000,
         "coupon_count": 5
@@ -686,7 +730,7 @@
   }
   ```
 
-### 2.3. 更改客户状态
+### 2.4. 更改客户状态
 - **Endpoint**: `PUT /admin/customer/status/{id}`
 - **描述**: 冻结或解冻客户账号。
 - **请求体**:
@@ -705,6 +749,91 @@
   }
   ```
 
+### 2.5. 客户地址管理
+
+#### 2.5.1. 获取客户地址列表
+- **Endpoint**: `GET /admin/customer/address/list`
+- **描述**: 获取客户的收货地址列表。
+- **请求参数**:
+  - `phone` (String, Optional): 客户手机号
+  - `customer_id` (Long, Optional): 客户ID（二选一）
+- **成功响应**:
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": [
+      {
+        "id": 1,
+        "customer_id": 1,
+        "receiver_name": "刘涛",
+        "receiver_phone": "13900139002",
+        "province": "广东省",
+        "city": "广州市",
+        "district": "天河区",
+        "detail": "珠江新城2号",
+        "tag": "公司",
+        "is_default": 1
+      }
+    ]
+  }
+  ```
+
+#### 2.5.2. 添加客户地址
+- **Endpoint**: `POST /admin/customer/address/add`
+- **描述**: 为客户添加收货地址。设为默认时会自动取消其他默认地址。
+- **请求体**:
+  ```json
+  {
+    "customer_id": 1,
+    "receiver_name": "刘涛",
+    "receiver_phone": "13900139002",
+    "province": "广东省",
+    "city": "广州市",
+    "district": "天河区",
+    "detail": "珠江新城2号",
+    "tag": "公司",
+    "is_default": 1
+  }
+  ```
+
+#### 2.5.3. 更新客户地址
+- **Endpoint**: `PUT /admin/customer/address/update`
+- **描述**: 更新客户收货地址。
+- **请求体**: 同添加接口，需包含id字段
+
+#### 2.5.4. 删除客户地址
+- **Endpoint**: `DELETE /admin/customer/address/delete/{id}`
+- **描述**: 删除指定地址。
+
+---
+
+## 2.6. 客户列表简化接口（通用）
+
+`基础路径: /customer`
+
+### 2.6.1. 客户列表（用于下拉选择）
+- **Endpoint**: `GET /customer/list`
+- **描述**: 获取客户列表，用于创建订单等场景的客户选择。
+- **请求参数**:
+  - `size` (Int, Default: 100): 返回条数
+  - `keyword` (String, Optional): 搜索关键词（手机号或昵称）
+- **成功响应**:
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": [
+      {
+        "id": 1,
+        "nickname": "陈晨",
+        "phone": "13800138001",
+        "avatar": "..."
+      }
+    ]
+  }
+  ```
+
 ---
 
 ## 3. 优惠券管理 (Coupon Management)
@@ -720,15 +849,19 @@
     "title": "双11大促满减券",
     "type": 1,              // 1=满减, 2=折扣, 3=现金
     "threshold_amount": 299.00,
-    "discount_amount": 30.00,
-    "discount_rate": 0.00,
-    "max_discount": null,
-    "total_issued": 1000,   // 发行总量
-    "per_user_limit": 1,    // 每人限领
+    "discount_amount": 30.00,   // 满减/现金券的优惠金额
+    "discount_rate": 0.90,      // 折扣券专用，小数形式，0.90表示9折
+    "max_discount": 150.00,     // 折扣券的最大优惠金额
+    "total_issued": 1000,       // 发行总量
+    "per_user_limit": 1,        // 每人限领
     "valid_from": "2024-11-01 00:00:00",
     "valid_to": "2024-11-11 23:59:59"
   }
   ```
+- **折扣券计算说明**: 
+  - `discount_rate` 存储小数形式（如 0.90 表示9折）
+  - 优惠金额 = 总价 × (1 - discount_rate)
+  - 例：总价100元，9折券优惠 = 100 × (1 - 0.9) = 10元
 - **成功响应**:
   ```json
   {
@@ -796,6 +929,47 @@
     }
   }
   ```
+
+### 3.5. 获取用户可用优惠券
+- **Endpoint**: `GET /admin/coupon/available`
+- **描述**: 后台派单时获取客户可用的优惠券列表。
+- **请求参数**: 
+  - `customerPhone` (String, 必填): 客户手机号
+  - `orderAmount` (Decimal, 可选): 订单金额，用于计算优惠金额和是否满足使用门槛
+- **成功响应**:
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": [
+      {
+        "coupon_id": 1001,
+        "title": "满299减30",
+        "type": 1,
+        "threshold_amount": 299.00,
+        "discount_amount": 30.00,
+        "discount_rate": null,
+        "max_discount": null,
+        "expire_time": "2024-08-01",
+        "calculated_discount": 30.00,
+        "usable": true
+      },
+      {
+        "coupon_id": 1002,
+        "title": "全场9折券",
+        "type": 2,
+        "threshold_amount": 0,
+        "discount_amount": null,
+        "discount_rate": 0.90,
+        "max_discount": 150.00,
+        "expire_time": "2024-08-15",
+        "calculated_discount": 69.00,
+        "usable": true
+      }
+    ]
+  }
+  ```
+- **折扣券计算说明**: `discount_rate` 存储小数形式（如 0.9 表示9折），优惠金额 = 总价 × (1 - discount_rate)
 
 ---
 
@@ -915,3 +1089,89 @@
     "data":  null 
   }
   ```
+
+---
+
+## 6. 订单管理 (Order Management)
+
+`基础路径: /orders`
+
+### 6.1. 派单确认支付
+- **Endpoint**: `PUT /orders/change/dispatch-status/{id}/{status}`
+- **描述**: 后台确认客户支付并派单。此接口会同时更新：
+  - `dispatch_status`: 派送状态 (0→1)
+  - `pay_status`: 支付状态 (0→1)
+  - `pay_channel`: 支付渠道 (1=微信, 2=支付宝)
+  - `pay_time`: 支付时间
+  - `order_status`: 订单状态 (0→1)
+  - `coupon_id`, `discount_amount`, `payable_amount`: 如果使用优惠券
+- **请求参数**:
+  - `id` (Long, Path, 必填): 订单ID
+  - `status` (Int, Path, 必填): 目标派送状态（通常为1）
+  - `pay_method` (String, Query, 可选): 支付方式 `wechat` 或 `alipay`
+  - `coupon_id` (Long, Query, 可选): 使用的优惠券ID
+- **成功响应**:
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": null
+  }
+  ```
+
+### 6.2. 后台确认收货
+- **Endpoint**: `POST /orders/confirm-receive/{id}`
+- **描述**: 后台确认订单收货，订单状态从"待确认(3)"变为"已完成(4)"，同时为用户发放积分。
+- **积分规则**: 1元 = 1积分（实付金额，去除小数点向下取整）
+- **路径参数**: `id` (Long, 必填): 订单ID
+- **成功响应**:
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": null
+  }
+  ```
+
+---
+
+## 附录：订单状态流转
+
+### 订单状态 (order_status)
+| 状态值 | 状态名称 | 说明 |
+|-------|---------|------|
+| 0 | 待支付 | 订单创建，等待支付确认 |
+| 1 | 待发货 | 已支付，等待后台派送 |
+| 2 | 配送中 | 司机已接单，正在配送 |
+| 3 | 待确认 | 司机已送达，等待用户/后台确认收货 |
+| 4 | 已完成 | 用户/后台确认收货，积分已发放 |
+| 5 | 已取消 | 订单被取消 |
+
+### 派送状态 (dispatch_status)
+| 状态值 | 状态名称 | 说明 |
+|-------|---------|------|
+| 0 | 待派送 | 等待后台派单 |
+| 1 | 待接单 | 已派单，等待司机抢单 |
+| 2 | 派送中 | 司机已接单，正在配送 |
+| 3 | 已完成 | 司机已送达 |
+
+### 完整业务流程
+```
+前端下单 (order_status=0, dispatch_status=0)
+    ↓
+后台选品单处理
+    ↓
+后台点击"派送" → 选择支付方式 → 选择优惠券(可选) → 确认
+    ↓
+系统更新: order_status=1, pay_status=1, dispatch_status=1
+    ↓
+司机抢单 (dispatch_status=2, order_status=2)
+    ↓
+司机点击"送达" (dispatch_status=3, order_status=3)
+    ↓
+用户/后台点击"确认收货" (order_status=4, 发放积分)
+```
+
+### 积分计算规则
+- **获取积分**: 确认收货时，按实付金额计算，1元 = 1积分（去除小数点向下取整）
+- **会员等级**: 根据累计获取积分（total_earned）判定等级，非当前余额

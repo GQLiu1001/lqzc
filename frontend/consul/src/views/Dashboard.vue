@@ -137,6 +137,10 @@ onUnmounted(() => {
               <el-icon><Document /></el-icon>
               <span>订单模块</span>
             </template>
+            <el-menu-item index="/dashboard/selection/list">
+              <el-icon><Service /></el-icon>
+              <template #title>选品单管理</template>
+            </el-menu-item>
             <el-menu-item index="/dashboard/order/post">
               <el-icon><FolderChecked /></el-icon>
               <template #title>创建订单</template>
@@ -155,18 +159,6 @@ onUnmounted(() => {
             </el-menu-item>
           </el-sub-menu>
 
-          <!-- 选品单管理 -->
-          <el-sub-menu index="5">
-            <template #title>
-              <el-icon><Service /></el-icon>
-              <span>选品单管理</span>
-            </template>
-            <el-menu-item index="/dashboard/selection/list">
-              <el-icon><DocumentCopy /></el-icon>
-              <template #title>选品单列表</template>
-            </el-menu-item>
-          </el-sub-menu>
-
           <!-- 客户管理 -->
           <el-sub-menu index="6">
             <template #title>
@@ -176,6 +168,26 @@ onUnmounted(() => {
             <el-menu-item index="/dashboard/customer/list">
               <el-icon><User /></el-icon>
               <template #title>客户列表</template>
+            </el-menu-item>
+          </el-sub-menu>
+
+          <!-- 营销管理 -->
+          <el-sub-menu index="7">
+            <template #title>
+              <el-icon><Document /></el-icon>
+              <span>营销管理</span>
+            </template>
+            <el-menu-item index="/dashboard/coupon/list">
+              <el-icon><DocumentCopy /></el-icon>
+              <template #title>优惠券管理</template>
+            </el-menu-item>
+            <el-menu-item index="/dashboard/points/list">
+              <el-icon><Document /></el-icon>
+              <template #title>积分管理</template>
+            </el-menu-item>
+            <el-menu-item index="/dashboard/member/level">
+              <el-icon><User /></el-icon>
+              <template #title>会员等级</template>
             </el-menu-item>
           </el-sub-menu>
 

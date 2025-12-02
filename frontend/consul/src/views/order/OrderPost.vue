@@ -448,11 +448,11 @@ const showSpecificationAndSurface = computed(() => {
                 </span>
               </div>
               <div v-else-if="orderForm.customer_phone && orderForm.customer_phone.length === 11" class="customer-badge">
-                <el-tag type="info" effect="light">
+                <el-tag type="warning" effect="light">
                   <el-icon><User /></el-icon>
                   新客户
                 </el-tag>
-                <span class="new-customer-hint">该手机号尚未注册，订单创建后可在客户管理中为其注册账号</span>
+                <span class="new-customer-hint">该手机号尚未注册，订单创建时将自动创建客户账户</span>
               </div>
             </el-form-item>
           </el-col>

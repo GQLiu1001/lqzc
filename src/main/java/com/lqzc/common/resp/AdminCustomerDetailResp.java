@@ -3,6 +3,9 @@ package com.lqzc.common.resp;
 import java.math.BigDecimal;
 import lombok.Data;
 
+/**
+ * 客户详情响应
+ */
 @Data
 public class AdminCustomerDetailResp {
     /** 基础信息 */
@@ -22,6 +25,16 @@ public class AdminCustomerDetailResp {
         private String phone;
         /** 头像 */
         private String avatar;
+        /** 会员等级：1=普通 2=银卡 3=金卡 4=黑金 */
+        private Integer level;
+        /** 会员等级名称 */
+        private String levelName;
+        /** 状态：1正常 0停用 */
+        private Integer status;
+        /** 注册渠道 */
+        private String registerChannel;
+        /** 创建时间 */
+        private String createTime;
     }
 
     @Data

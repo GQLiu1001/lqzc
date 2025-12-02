@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `order_info`
     `payable_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '应付金额(扣除优惠后) -- 新增字段',
     `discount_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '优惠合计(积分/券) -- 新增字段',
     `dispatch_status` INT DEFAULT 0 COMMENT '订单派送状态：0=待派送 1=待接单 2=派送中 3=已完成',
-    `order_status` TINYINT NOT NULL DEFAULT 0 COMMENT '订单状态：0=待支付 1=待发货 2=待收货 3=已完成 4=已取消 5=已关闭 -- 新增字段',
+    `order_status` TINYINT NOT NULL DEFAULT 0 COMMENT '订单状态：0=待支付 1=待发货 2=配送中 3=待确认(司机送达) 4=已完成 5=已取消 -- 新增字段',
     `pay_status` TINYINT NOT NULL DEFAULT 0 COMMENT '支付状态：0=未支付 1=已支付 2=部分退款 3=已退款 -- 新增字段',
     `pay_channel` TINYINT DEFAULT NULL COMMENT '支付渠道：1=微信 2=支付宝 3=银行卡 4=线下 -- 新增字段',
     `pay_time` DATETIME DEFAULT NULL COMMENT '支付时间 -- 新增字段',
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS `coupon_template`
     `type` TINYINT NOT NULL COMMENT '1=满减 2=折扣 3=现金券',
     `threshold_amount` DECIMAL(10,2) DEFAULT 0.00 COMMENT '使用门槛金额',
     `discount_amount` DECIMAL(10,2) DEFAULT 0.00 COMMENT '立减金额',
-    `discount_rate` DECIMAL(4,2) DEFAULT 0.00 COMMENT '折扣（0.90代表9折）',
+    `discount_rate` DECIMAL(4,2) DEFAULT 0.00 COMMENT '折扣（小数形式：0.90代表9折，优惠金额=总价×(1-折扣率)）',
     `max_discount` DECIMAL(10,2) DEFAULT NULL COMMENT '折扣封顶',
     `valid_from` DATETIME NOT NULL COMMENT '有效期开始',
     `valid_to` DATETIME NOT NULL COMMENT '有效期结束',
@@ -381,12 +381,12 @@ CREATE TABLE IF NOT EXISTS `driver`
 -- ====================================================================================
 START TRANSACTION;
 
--- 会员等级示例
+-- 会员等级示例（积分规则：1元=1积分，累计获取积分决定等级）
 INSERT INTO `member_level` (`level`, `name`, `min_points`, `max_points`, `benefits`)
-VALUES (1, '普通会员', 0, 999, '下单积分'),
-       (2, '银卡会员', 1000, 4999, '满减券/包邮'),
-       (3, '金卡会员', 5000, 9999, '专属客服/生日券'),
-       (4, '黑金会员', 10000, 2147483647, '高级客服/专属折扣')
+VALUES (1, '普通会员', 0, 1499, '下单积分'),
+       (2, '银卡会员', 1500, 2999, '满减券/包邮'),
+       (3, '金卡会员', 3000, 5999, '专属客服/生日券'),
+       (4, '黑金会员', 6000, 2147483647, '高级客服/专属折扣')
     ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `max_points` = VALUES(`max_points`), `benefits` = VALUES(`benefits`), `update_time` = NOW();
 
 -- 插入前台客户及积分、券示例
@@ -402,9 +402,11 @@ VALUES (1, 3000, 4800, 1800, 0),
        (3, 150, 450, 300, 0)
     ON DUPLICATE KEY UPDATE `balance` = VALUES(`balance`), `total_earned` = VALUES(`total_earned`), `total_spent` = VALUES(`total_spent`), `update_time` = NOW();
 
+-- 积分日志（积分规则：确认收货时按实付金额计算，1元=1积分）
 INSERT INTO `loyalty_points_log` (`customer_id`, `change_amount`, `balance_after`, `source_type`, `order_id`, `remark`)
-VALUES (1, 500, 3200, 1, 1, '订单完成赠送积分'),
-       (1, -200, 3000, 3, 1, '支付抵扣积分'),
+VALUES (1, 3400, 3400, 1, 1, '订单完成赠送积分(用户确认)'),
+       (1, -200, 3200, 3, 1, '支付抵扣积分'),
+       (1, -200, 3000, 3, NULL, '人工调整'),
        (2, 180, 860, 1, 2, '支付成功赠送积分'),
        (3, 150, 150, 2, NULL, '退款回退')
     ON DUPLICATE KEY UPDATE `remark` = VALUES(`remark`);
@@ -494,14 +496,16 @@ VALUES (1, 'A8001', '佛山陶瓷一厂', '800x800mm', 1, 2, 1, 349, 4,
         '二号仓备货');
 
 -- 2. 插入订单数据
+-- 订单1: 已完成（状态4）- 司机送达后用户已确认收货
 INSERT INTO `order_info` (`id`, `order_no`, `customer_id`, `customer_phone`, `order_source`, `total_price`, `payable_amount`,
                           `discount_amount`, `dispatch_status`, `order_status`, `pay_status`, `pay_channel`, `driver_id`,
                           `delivery_address`, `address_id`, `delivery_fee`, `goods_weight`, `coupon_id`,
                           `points_used`, `pay_time`, `receive_time`, `remark`)
-VALUES (1, 'ORD202310270001', 1, '13800138001', 1, 3450.00, 3400.00, 50.00, 3, 3, 1, 1, 1,
+VALUES (1, 'ORD202310270001', 1, '13800138001', 1, 3450.00, 3400.00, 50.00, 3, 4, 1, 1, 1,
         '广东省深圳市南山区科技园1号', 1, 50.00, 3.60, 1, 200,
         DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), '客户要求下午派送');
 
+-- 订单2: 待发货（状态1）- 后台已确认支付，等待派送
 INSERT INTO `order_info` (`id`, `order_no`, `customer_id`, `customer_phone`, `order_source`, `total_price`, `payable_amount`,
                           `discount_amount`, `dispatch_status`, `order_status`, `pay_status`, `pay_channel`, `coupon_id`,
                           `delivery_address`, `address_id`, `delivery_fee`, `goods_weight`, `remark`, `pay_time`)
@@ -521,11 +525,13 @@ INSERT INTO `order_payment` (`order_id`, `pay_channel`, `pay_amount`, `transacti
 VALUES (1, 1, 3400.00, 'WX202310270001', 1, DATE_SUB(NOW(), INTERVAL 5 DAY)),
        (2, 2, 1760.00, 'ALI202310270002', 1, DATE_SUB(NOW(), INTERVAL 1 DAY));
 
--- 3.2 插入订单状态流转
+-- 3.2 插入订单状态流转（状态：0待支付 1待发货 2配送中 3待确认 4已完成 5已取消）
 INSERT INTO `order_status_history` (`order_id`, `operator`, `from_status`, `to_status`, `remark`, `create_time`)
-VALUES (1, 'system', 0, 1, '客户完成支付', DATE_SUB(NOW(), INTERVAL 5 DAY)),
-       (1, '配送员', 1, 3, '配送完成签收', DATE_SUB(NOW(), INTERVAL 2 DAY)),
-       (2, 'system', 0, 1, '支付成功，待发货', DATE_SUB(NOW(), INTERVAL 1 DAY));
+VALUES (1, 'system', 0, 1, '后台确认支付', DATE_SUB(NOW(), INTERVAL 5 DAY)),
+       (1, 'system', 1, 2, '司机接单开始配送', DATE_SUB(NOW(), INTERVAL 4 DAY)),
+       (1, 'system', 2, 3, '司机送达等待确认', DATE_SUB(NOW(), INTERVAL 3 DAY)),
+       (1, 'system', 3, 4, '用户确认收货', DATE_SUB(NOW(), INTERVAL 2 DAY)),
+       (2, 'system', 0, 1, '后台确认支付，待发货', DATE_SUB(NOW(), INTERVAL 1 DAY));
 
 -- 4. 插入库存操作日志 (模拟出库)
 INSERT INTO `inventory_log` (`item_id`, `log_type`, `amount_change`, `source_warehouse`, `remark`)

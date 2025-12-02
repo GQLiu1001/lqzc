@@ -16,6 +16,7 @@ import com.lqzc.common.req.OrderSubChangeReq;
 import com.lqzc.common.resp.DispatchOrderFetchResp;
 import com.lqzc.common.resp.OrderDetailResp;
 import com.lqzc.common.resp.OrderListResp;
+import com.lqzc.service.CustomerUserService;
 import com.lqzc.service.InventoryItemService;
 import com.lqzc.service.InventoryLogService;
 import com.lqzc.service.OrderDetailService;
@@ -43,13 +44,23 @@ public class OrdersController {
     private InventoryItemService inventoryItemService;
     @Resource
     private InventoryLogService inventoryLogService;
+    @Resource
+    private CustomerUserService customerUserService;
     /**
      * 创建新订单
+     * <p>
+     * 如果客户手机号不存在，会自动创建新客户
+     * </p>
      */
     @Transactional(rollbackFor = Exception.class)
-    @Operation(summary = "创建新订单", description = "创建一个新的订单")
+    @Operation(summary = "创建新订单", description = "创建一个新的订单，如手机号未注册会自动创建客户")
     @PostMapping("/new")
     public Result<?> newOrder(@Parameter(description = "新订单请求参数", required = true) @RequestBody OrderNewReq request) {
+        // 检查并自动创建客户
+        if (request.getCustomerPhone() != null && !request.getCustomerPhone().isEmpty()) {
+            customerUserService.ensureCustomerExists(request.getCustomerPhone());
+        }
+        
         //生成出库日志
         inventoryLogService.postOutboundLog(request.getItems());
         //扣除库存
@@ -163,13 +174,28 @@ public class OrdersController {
 
     
     /**
-     * 更改订单派送状态
+     * 更改订单派送状态（并确认支付）
+     * 当派送状态从0变为1时，同时更新支付状态为已支付
      */
-    @Operation(summary = "更改订单派送状态", description = "修改订单的派送状态")
+    @Operation(summary = "更改订单派送状态", description = "修改订单的派送状态，同时可确认支付和使用优惠券")
     @PutMapping("/change/dispatch-status/{id}/{status}")
-    public Result<?> changeDispatchStatus(@Parameter(description = "订单ID", required = true) @PathVariable Long id, 
-                                         @Parameter(description = "派送状态", required = true) @PathVariable Integer status) {
-        orderInfoService.changeDispatchStatus(id,status);
+    public Result<?> changeDispatchStatus(
+            @Parameter(description = "订单ID", required = true) @PathVariable Long id, 
+            @Parameter(description = "派送状态", required = true) @PathVariable Integer status,
+            @Parameter(description = "支付方式: wechat/alipay") @RequestParam(required = false) String pay_method,
+            @Parameter(description = "使用的优惠券ID") @RequestParam(required = false) Long coupon_id) {
+        orderInfoService.changeDispatchStatusWithPayment(id, status, pay_method, coupon_id);
+        return Result.success();
+    }
+
+    /**
+     * 后台确认收货
+     * 将订单状态从"待确认"(3)变为"已完成"(4)，并为用户增加积分
+     */
+    @Operation(summary = "后台确认收货", description = "后台确认订单收货，同时计算并赠送积分")
+    @PostMapping("/confirm-receive/{id}")
+    public Result<?> confirmReceive(@Parameter(description = "订单ID", required = true) @PathVariable Long id) {
+        orderInfoService.confirmReceive(id, true);
         return Result.success();
     }
 

@@ -7,7 +7,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
-import { getOrders, getOrderDetail, updateOrder, updateOrderItem, deleteOrder, updateDispatchStatus, dispatchOrder, addOrderItem, deleteOrderItem } from '@/api/order';
+import { getOrders, getOrderDetail, updateOrder, updateOrderItem, deleteOrder, updateDispatchStatus, dispatchOrder, addOrderItem, deleteOrderItem, getAvailableCoupons, confirmReceive, type AvailableCoupon } from '@/api/order';
 import { useUserStore } from '@/stores/user';
 import { getInventoryByModelNumber } from '@/api/inventory';
 import { getCustomerAddresses, addCustomerAddress, type CustomerAddress } from '@/api/customer';
@@ -664,6 +664,28 @@ const getDispatchStatusType = (status: number | undefined) => {
   return dispatchStatusMap[status as keyof typeof dispatchStatusMap]?.type || '';
 };
 
+// 订单状态映射
+const orderStatusMap = {
+  0: { text: '待支付', type: 'info' },
+  1: { text: '待发货', type: 'warning' },
+  2: { text: '配送中', type: 'primary' },
+  3: { text: '待确认', type: '' },       // 司机送达，等待确认收货
+  4: { text: '已完成', type: 'success' },
+  5: { text: '已取消', type: 'danger' }
+};
+
+// 获取订单状态文本
+const getOrderStatusText = (status: number | undefined) => {
+  if (status === undefined) return '待支付';
+  return orderStatusMap[status as keyof typeof orderStatusMap]?.text || '未知状态';
+};
+
+// 获取订单状态类型（用于标签颜色）
+const getOrderStatusType = (status: number | undefined) => {
+  if (status === undefined) return 'info';
+  return orderStatusMap[status as keyof typeof orderStatusMap]?.type || '';
+};
+
 // 派送对话框
 const dispatchDialogVisible = ref(false);
 const currentDispatchOrder = ref<Order | null>(null);
@@ -673,7 +695,46 @@ const dispatchForm = ref({
   deliveryRemark: '',
   deliveryWeight: 0,
   deliveryFee: 0,
+  payMethod: '' as string, // 支付方式：wechat / alipay
+  couponId: null as number | null, // 选择的优惠券ID
 });
+
+// 支付方式选项
+const payMethodOptions = [
+  { label: '微信支付', value: 'wechat' },
+  { label: '支付宝支付', value: 'alipay' }
+];
+
+// 用户可用优惠券
+const availableCoupons = ref<AvailableCoupon[]>([]);
+const couponsLoading = ref(false);
+
+// 计算优惠后金额
+const calculatedPayableAmount = computed(() => {
+  const totalPrice = currentDispatchOrder.value?.total_price || 0;
+  const selectedCoupon = availableCoupons.value.find(c => c.coupon_id === dispatchForm.value.couponId);
+  if (selectedCoupon && selectedCoupon.calculated_discount) {
+    const payable = totalPrice - selectedCoupon.calculated_discount;
+    return payable > 0 ? payable : 0;
+  }
+  return totalPrice;
+});
+
+// 获取优惠券描述
+const getCouponDesc = (coupon: AvailableCoupon): string => {
+  if (coupon.type === 1) {
+    // 满减券
+    return `满${coupon.threshold_amount || 0}减${coupon.discount_amount || 0}`;
+  } else if (coupon.type === 2) {
+    // 折扣券（discount_rate存的是小数，如0.9表示9折）
+    const discountDisplay = coupon.discount_rate ? (coupon.discount_rate * 10).toFixed(0) : '0';
+    return `${discountDisplay}折${coupon.max_discount ? '(最高减' + coupon.max_discount + ')' : ''}`;
+  } else if (coupon.type === 3) {
+    // 现金券
+    return `立减${coupon.discount_amount || 0}元`;
+  }
+  return '';
+};
 
 // 地址相关状态
 const customerAddresses = ref<CustomerAddress[]>([]);
@@ -699,9 +760,11 @@ const handleDispatchClick = async (order: Order) => {
     deliveryRemark: '',
     deliveryWeight: 0,
     deliveryFee: 0,
+    payMethod: '', // 需要选择支付方式
+    couponId: null, // 重置优惠券选择
   };
   
-  // 获取客户地址列表
+  // 获取客户地址列表和可用优惠券
   if (order.customer_phone) {
     try {
       const res = await getCustomerAddresses(order.customer_phone);
@@ -710,6 +773,20 @@ const handleDispatchClick = async (order: Order) => {
       }
     } catch (e) {
       console.error('获取客户地址失败', e);
+    }
+    
+    // 获取可用优惠券
+    couponsLoading.value = true;
+    try {
+      const couponRes = await getAvailableCoupons(order.customer_phone, order.total_price);
+      if (couponRes.data.code === 200) {
+        availableCoupons.value = couponRes.data.data || [];
+      }
+    } catch (e) {
+      console.error('获取可用优惠券失败', e);
+      availableCoupons.value = [];
+    } finally {
+      couponsLoading.value = false;
     }
   }
   
@@ -768,6 +845,12 @@ const saveNewAddress = async () => {
 
 // 提交派送请求
 const handleDispatch = async () => {
+  // 验证支付方式
+  if (!dispatchForm.value.payMethod) {
+    ElMessage.error('请选择支付方式');
+    return;
+  }
+
   if (!dispatchForm.value.deliveryAddress.trim()) {
     ElMessage.error('派送地址不能为空');
     return;
@@ -789,18 +872,32 @@ const handleDispatch = async () => {
     return;
   }
 
+  const payMethodText = dispatchForm.value.payMethod === 'wechat' ? '微信支付' : '支付宝支付';
+  const selectedCoupon = availableCoupons.value.find(c => c.coupon_id === dispatchForm.value.couponId);
+  const couponInfo = selectedCoupon ? `\n使用优惠券：${selectedCoupon.title}（优惠 ¥${selectedCoupon.calculated_discount?.toFixed(2) || 0}）` : '';
+  const finalAmount = calculatedPayableAmount.value;
+
   try {
     // 使用 ElMessageBox 确认派送操作
-    await ElMessageBox.confirm('确认派送该订单?', '提示', {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
+    await ElMessageBox.confirm(
+      `确认客户已通过【${payMethodText}】完成支付？${couponInfo}\n\n实付金额：¥${finalAmount.toFixed(2)}`,
+      '确认支付并派送',
+      {
+        confirmButtonText: '确认已支付，派送',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
     
     // 用户确认后继续
     try {
-      // 1. 首先更新8080的订单状态 (设置为已派送状态：1)
-      const updateResult = await updateDispatchStatus(currentDispatchOrder.value?.id || 0, 1);
+      // 1. 首先更新8080的订单状态 (设置为已派送状态：1) 和支付状态，使用优惠券
+      const updateResult = await updateDispatchStatus(
+        currentDispatchOrder.value?.id || 0, 
+        1, 
+        dispatchForm.value.payMethod,
+        dispatchForm.value.couponId || undefined
+      );
       
       if (updateResult.data && updateResult.data.code === 200) {
         // 2. 然后向配送系统发送派送请求 - 使用蛇形命名
@@ -817,7 +914,7 @@ const handleDispatch = async () => {
         const response = await dispatchOrder(dispatchData);
         
         if (response.data && response.data.code === 200) {
-          ElMessage.success('订单派送成功');
+          ElMessage.success('支付确认成功，订单已派送');
           dispatchDialogVisible.value = false;
           fetchOrderList(); // 重新加载列表
         } else {
@@ -833,6 +930,34 @@ const handleDispatch = async () => {
   } catch (error) {
     // 用户取消确认
     ElMessage.info('已取消派送操作');
+  }
+};
+
+// 后台确认收货（状态从待确认(3)变为已完成(4)，并发放积分）
+const handleConfirmReceive = async (order: Order) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认订单 ${order.order_no} 已完成收货？\n确认后将为客户发放积分（实付金额每1元=1积分）`,
+      '确认收货',
+      {
+        confirmButtonText: '确认完成',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    );
+    
+    const res = await confirmReceive(order.id);
+    if (res.data.code === 200) {
+      ElMessage.success('确认收货成功，积分已发放');
+      fetchOrderList();
+    } else {
+      throw new Error(res.data.message || '确认收货失败');
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('确认收货失败:', error);
+      ElMessage.error(error.message || '确认收货失败');
+    }
   }
 };
 
@@ -902,13 +1027,20 @@ onMounted(() => {
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="订单备注" min-width="150" :show-overflow-tooltip="true" />
+      <el-table-column prop="order_status" label="订单状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="getOrderStatusType(row.order_status)">
+            {{ getOrderStatusText(row.order_status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="create_time" label="创建时间" width="160">
         <template #default="{ row }">
           {{ row.create_time ? new Date(row.create_time).toLocaleString() : '-' }}
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="操作" width="160" fixed="right">
         <template #default="scope">
           <div class="button-group-vertical">
             <div class="button-row">
@@ -922,6 +1054,12 @@ onMounted(() => {
                 size="small" 
                 @click="handleDispatchClick(scope.row)"
               >派送</el-button>
+              <el-button 
+                v-if="scope.row.order_status === 3"
+                type="success" 
+                size="small" 
+                @click="handleConfirmReceive(scope.row)"
+              >确认收货</el-button>
             </div>
             <div v-if="isAdmin" class="button-row">
               <el-popconfirm
@@ -1129,7 +1267,7 @@ onMounted(() => {
     <!-- 派送对话框 -->
     <el-dialog
         v-model="dispatchDialogVisible"
-        title="订单派送"
+        title="确认支付并派送"
         width="500px"
     >
       <div v-if="currentDispatchOrder" class="order-info-summary">
@@ -1137,7 +1275,9 @@ onMounted(() => {
           <el-descriptions-item label="订单编号">{{ currentDispatchOrder.order_no }}</el-descriptions-item>
           <el-descriptions-item label="客户手机号">{{ currentDispatchOrder.customer_phone }}</el-descriptions-item>
           <el-descriptions-item label="订单总金额">
-            {{ currentDispatchOrder.total_price ? currentDispatchOrder.total_price.toFixed(2) + ' 元' : '-' }}
+            <span style="color: #f56c6c; font-weight: bold;">
+              {{ currentDispatchOrder.total_price ? '¥' + currentDispatchOrder.total_price.toFixed(2) : '-' }}
+            </span>
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">
             {{ currentDispatchOrder.create_time ? new Date(currentDispatchOrder.create_time).toLocaleString() : '-' }}
@@ -1146,6 +1286,59 @@ onMounted(() => {
       </div>
       <!-- 派送表单 -->
       <el-form :model="dispatchForm" label-width="100px">
+        <!-- 支付方式选择（必选） -->
+        <el-form-item label="支付方式" required>
+          <el-radio-group v-model="dispatchForm.payMethod" size="large">
+            <el-radio-button
+              v-for="option in payMethodOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+          <div v-if="!dispatchForm.payMethod" style="color: #f56c6c; font-size: 12px; margin-top: 5px;">
+            请确认客户已完成支付并选择支付方式
+          </div>
+        </el-form-item>
+        
+        <!-- 优惠券选择 -->
+        <el-form-item label="使用优惠券">
+          <el-select
+            v-model="dispatchForm.couponId"
+            placeholder="选择优惠券（可选）"
+            clearable
+            :loading="couponsLoading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="coupon in availableCoupons"
+              :key="coupon.coupon_id"
+              :value="coupon.coupon_id"
+              :label="coupon.title"
+              :disabled="!coupon.usable"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ coupon.title }}</span>
+                <span style="color: #909399; font-size: 12px;">
+                  {{ getCouponDesc(coupon) }}
+                  <span v-if="coupon.calculated_discount" style="color: #f56c6c; margin-left: 5px;">
+                    -¥{{ coupon.calculated_discount.toFixed(2) }}
+                  </span>
+                </span>
+              </div>
+            </el-option>
+            <template v-if="availableCoupons.length === 0">
+              <el-option disabled value="">该客户暂无可用优惠券</el-option>
+            </template>
+          </el-select>
+          <div v-if="dispatchForm.couponId && calculatedPayableAmount !== currentDispatchOrder?.total_price" style="margin-top: 5px;">
+            <span style="color: #909399;">原价: ¥{{ currentDispatchOrder?.total_price?.toFixed(2) }}</span>
+            <span style="color: #67c23a; margin-left: 10px;">→ 实付: ¥{{ calculatedPayableAmount.toFixed(2) }}</span>
+          </div>
+        </el-form-item>
+        
+        <el-divider />
         <el-form-item label="派送地址" required>
           <el-select
             v-model="dispatchForm.deliveryAddress"

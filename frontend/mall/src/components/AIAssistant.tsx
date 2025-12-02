@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getAnonymousToken, refreshAnonymousToken } from "@/lib/api";
+import { getCustomerToken, isLoggedIn } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 
 interface Message {
@@ -68,6 +68,18 @@ const AIAssistant = () => {
   const sendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
+    // 检查是否已登录
+    if (!isLoggedIn()) {
+      const loginHintMessage: Message = {
+        id: generateId(),
+        content: "请先登录后再使用智能客服功能～ 点击右上角的用户图标进行登录。",
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, loginHintMessage]);
+      return;
+    }
+
     const userMessage: Message = {
       id: generateId(),
       content: inputValue.trim(),
@@ -99,36 +111,22 @@ const AIAssistant = () => {
       
       abortControllerRef.current = new AbortController();
       
-      // 定义一个执行fetch的内部函数，以便重试
-      const doFetchStream = async () => {
-        const jwt = await getAnonymousToken(); // 获取最新的token
-        return fetch(`/api/mall/ai/stream-chat?message=${encodeURIComponent(userMessage.content)}&sessionId=${encodeURIComponent(sessionId)}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${jwt}`,
-            'Accept': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-          },
-          signal: abortControllerRef.current.signal,
-        });
+      // 构建请求头（如果已登录则带上token）
+      const headers: Record<string, string> = {
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache',
       };
       
-      let response = await doFetchStream();
-
-      // 如果响应是401 (Unauthorized)，则认为token过期，刷新token并重试一次
-      if (response.status === 401) {
-        console.warn('AI助手收到401响应，匿名token可能已过期，正在尝试刷新...');
-        
-        try {
-          await refreshAnonymousToken();
-          console.log('AI助手token刷新成功，正在重试请求...');
-          response = await doFetchStream();
-        } catch (refreshError) {
-          console.error('刷新token失败，无法重试AI助手请求。', refreshError);
-          // 如果刷新失败，抛出错误，让上层catch处理
-          throw new Error(`认证失败，无法刷新令牌`);
-        }
+      const customerToken = getCustomerToken();
+      if (customerToken) {
+        headers['X-Customer-Token'] = customerToken;
       }
+      
+      const response = await fetch(`/api/mall/ai/stream-chat?message=${encodeURIComponent(userMessage.content)}&sessionId=${encodeURIComponent(sessionId)}`, {
+        method: 'GET',
+        headers,
+        signal: abortControllerRef.current?.signal,
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -256,7 +254,11 @@ const AIAssistant = () => {
                   <div className="text-center text-gray-500 text-sm py-8">
                     <Bot className="h-8 w-8 mx-auto mb-2 text-blue-500" />
                     <p>您好！我是您的专属瓷砖顾问</p>
-                    <p>有什么问题可以随时问我～</p>
+                    {isLoggedIn() ? (
+                      <p>有什么问题可以随时问我～</p>
+                    ) : (
+                      <p className="text-amber-600">请先登录后再使用智能客服</p>
+                    )}
                   </div>
                 )}
                 {messages.map((message) => (

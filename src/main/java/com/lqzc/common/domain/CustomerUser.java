@@ -1,7 +1,6 @@
 package com.lqzc.common.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.util.Date;
@@ -29,6 +28,11 @@ public class CustomerUser {
      * 手机号
      */
     private String phone;
+
+    /**
+     * 登录密码
+     */
+    private String password;
 
     /**
      * 头像URL

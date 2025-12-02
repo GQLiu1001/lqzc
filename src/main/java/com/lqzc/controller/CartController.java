@@ -3,7 +3,6 @@ package com.lqzc.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lqzc.common.Result;
-import com.lqzc.common.constant.RedisConstant;
 import com.lqzc.common.exception.LianqingException;
 import com.lqzc.common.req.CartDeleteReq;
 import com.lqzc.common.req.CartReq;
@@ -25,10 +24,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 商城购物车控制器
+ * <p>
+ * 需要登录后才能使用购物车功能，使用customerId作为Redis key
+ * </p>
+ */
 @Tag(name = "商城系统购物车相关接口")
 @RestController
 @RequestMapping("/mall/cart")
 public class CartController {
+
+    /** 购物车Redis key前缀 */
+    private static final String CART_KEY_PREFIX = "customer:cart:";
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -41,11 +49,22 @@ public class CartController {
     @Resource
     private InventoryItemService inventoryItemService;
 
+    /**
+     * 获取当前登录用户的购物车Redis key
+     */
+    private String getCartKey() {
+        Long customerId = UserContextHolder.getCustomerId();
+        if (customerId == null) {
+            throw new LianqingException("请先登录");
+        }
+        return CART_KEY_PREFIX + customerId;
+    }
+
     @Operation(summary = "获取购物车展示信息")
     @GetMapping
     public Result<List<CartItemsResp>> getCartInfo() {
-        String cartId = UserContextHolder.getCartId();
-        Map<Object, Object> cartEntries = stringRedisTemplate.opsForHash().entries(RedisConstant.CART_ID+cartId);
+        String key = getCartKey();
+        Map<Object, Object> cartEntries = stringRedisTemplate.opsForHash().entries(key);
         if (CollectionUtils.isEmpty(cartEntries)) {
             return Result.success();
         }
@@ -73,11 +92,10 @@ public class CartController {
     @PostMapping("/add")
     public Result<?> addCart(@RequestBody CartReq cartReq)  {
         try {
-            String cartId = UserContextHolder.getCartId();
-            String key = RedisConstant.CART_ID + cartId;
+            String key = getCartKey();
             String value = objectMapper.writeValueAsString(cartReq);
             stringRedisTemplate.opsForHash().put(key, cartReq.getModel(), value);
-            stringRedisTemplate.expire(key,30, TimeUnit.DAYS);
+            stringRedisTemplate.expire(key, 30, TimeUnit.DAYS);
         } catch (JsonProcessingException e) {
             System.out.println("e = " + e);
             throw new LianqingException();
@@ -90,12 +108,11 @@ public class CartController {
     @PostMapping("/change")
     public Result<?> changeCart(@RequestBody CartReq cartReq)  {
         try {
-            String cartId = UserContextHolder.getCartId();
-            String key = RedisConstant.CART_ID + cartId;
+            String key = getCartKey();
             stringRedisTemplate.opsForHash().delete(key, cartReq.getModel());
             String value = objectMapper.writeValueAsString(cartReq);
             stringRedisTemplate.opsForHash().put(key, cartReq.getModel(), value);
-            stringRedisTemplate.expire(key,30, TimeUnit.DAYS);
+            stringRedisTemplate.expire(key, 30, TimeUnit.DAYS);
         } catch (JsonProcessingException e) {
             System.out.println("e = " + e);
             throw new LianqingException();
@@ -106,8 +123,8 @@ public class CartController {
     @Operation(summary = "删除购物车信息")
     @DeleteMapping("/delete")
     public Result<?> deleteCart(@RequestBody CartDeleteReq cartDeleteReq) {
-        String cartId = UserContextHolder.getCartId();
-        stringRedisTemplate.opsForHash().delete(RedisConstant.CART_ID + cartId, cartDeleteReq.getModel());
+        String key = getCartKey();
+        stringRedisTemplate.opsForHash().delete(key, cartDeleteReq.getModel());
         return Result.success();
     }
 
@@ -116,9 +133,8 @@ public class CartController {
     @PostMapping("/order")
     public Result<?> order(@RequestBody MallOrderReq mallOrderReq) {
         Long id = selectionListService.addSellectionList(mallOrderReq);
-        selectionItemService.addSellectionListItems(mallOrderReq,id);
-        String cartId = UserContextHolder.getCartId();
-        String key = RedisConstant.CART_ID + cartId;
+        selectionItemService.addSellectionListItems(mallOrderReq, id);
+        String key = getCartKey();
         stringRedisTemplate.delete(key);
         return Result.success();
     }
