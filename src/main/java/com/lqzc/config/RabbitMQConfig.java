@@ -34,6 +34,26 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(addMoneyQueue).to(addMoneyExchange).with(ADD_MONEY_ROUTING_KEY);
     }
 
+    // ==================== 优惠券发放消息 ====================
+    public static final String COUPON_RECEIVE_EXCHANGE = "coupon.receive.exchange";
+    public static final String COUPON_RECEIVE_QUEUE = "coupon.receive.queue";
+    public static final String COUPON_RECEIVE_ROUTING_KEY = "coupon.receive";
+
+    @Bean
+    public DirectExchange couponReceiveExchange() {
+        return new DirectExchange(COUPON_RECEIVE_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public Queue couponReceiveQueue() {
+        return new Queue(COUPON_RECEIVE_QUEUE, true);
+    }
+
+    @Bean
+    public Binding couponReceiveBinding(Queue couponReceiveQueue, DirectExchange couponReceiveExchange) {
+        return BindingBuilder.bind(couponReceiveQueue).to(couponReceiveExchange).with(COUPON_RECEIVE_ROUTING_KEY);
+    }
+
     // 改状态消息
     public static final String CHANGE_STATUS_ROUTING_KEY = "change.status.complete";
     public static final String CHANGE_STATUS_EXCHANGE = "change.status.exchange";
