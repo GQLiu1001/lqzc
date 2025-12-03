@@ -19,7 +19,7 @@ import java.util.Date;
 /**
  * 会员等级服务实现类
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【member_level(会员等级配置)】的数据库操作Service实现
  * @createDate 2025-12-02 00:00:00
  */

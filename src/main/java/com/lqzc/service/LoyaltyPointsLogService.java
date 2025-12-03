@@ -14,7 +14,7 @@ import com.lqzc.common.resp.PointsLogItemResp;
  * - 人工调整积分
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【loyalty_points_log(客户积分流水)】的数据库操作Service
  * @createDate 2025-07-11 09:05:49
  */

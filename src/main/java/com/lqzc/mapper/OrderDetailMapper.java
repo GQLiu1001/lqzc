@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lqzc.common.resp.SalesTrendResp;
 
 /**
-* @author 11965
+* @author rabbittank
 * @description 针对表【order_detail(订单项表)】的数据库操作Mapper
 * @createDate 2025-07-11 09:05:49
 * @Entity com.lqzc.common.domain.OrderDetail

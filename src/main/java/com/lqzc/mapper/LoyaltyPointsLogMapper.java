@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Param;
 /**
  * 积分流水Mapper接口
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【loyalty_points_log(客户积分流水)】的数据库操作Mapper
  * @createDate 2025-07-11 09:05:49
  * @Entity com.lqzc.common.domain.LoyaltyPointsLog

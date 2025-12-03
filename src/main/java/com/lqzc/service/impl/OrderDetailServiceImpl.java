@@ -27,7 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
-* @author 11965
+* @author rabbittank
 * @description 针对表【order_detail(订单项表)】的数据库操作Service实现
 * @createDate 2025-07-11 09:05:49
 */

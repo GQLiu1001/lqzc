@@ -17,7 +17,7 @@ import com.lqzc.common.resp.CouponTemplateListResp;
  * - 查询优惠券发放记录
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【coupon_template(优惠券模板)】的数据库操作Service
  * @createDate 2025-07-11 09:05:49
  */

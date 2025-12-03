@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
  * - 人工调整积分
  * </p>
  *
- * @author lqzc
+ * @author rabbittank
  */
 @Tag(name = "后台-积分管理")
 @RestController

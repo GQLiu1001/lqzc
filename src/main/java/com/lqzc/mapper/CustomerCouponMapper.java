@@ -14,7 +14,7 @@ import org.apache.ibatis.annotations.Param;
  * - 自定义的复杂查询（如发放记录查询）
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【customer_coupon(客户优惠券)】的数据库操作Mapper
  * @createDate 2025-07-11 09:05:49
  * @Entity com.lqzc.common.domain.CustomerCoupon

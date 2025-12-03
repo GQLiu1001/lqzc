@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
  * 状态管理、详情聚合查询等功能。
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【customer_user(前台客户账户)】的数据库操作Service实现
  * @createDate 2025-07-11 09:05:49
  */

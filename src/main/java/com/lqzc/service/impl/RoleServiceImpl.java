@@ -7,7 +7,7 @@ import com.lqzc.mapper.RoleMapper;
 import org.springframework.stereotype.Service;
 
 /**
-* @author 11965
+* @author rabbittank
 * @description 针对表【role(角色表)】的数据库操作Service实现
 * @createDate 2025-07-11 09:05:49
 */

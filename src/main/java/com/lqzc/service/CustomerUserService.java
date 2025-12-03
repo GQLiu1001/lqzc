@@ -24,7 +24,7 @@ import com.lqzc.common.resp.CustomerProfileResp;
  * - 客户状态变更（冻结/解冻）
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【customer_user(前台客户账户)】的数据库操作Service
  * @createDate 2025-07-11 09:05:49
  */

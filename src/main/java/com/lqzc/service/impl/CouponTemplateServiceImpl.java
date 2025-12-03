@@ -25,7 +25,7 @@ import java.util.Date;
  * 状态管理以及发放记录查询等功能。
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【coupon_template(优惠券模板)】的数据库操作Service实现
  * @createDate 2025-07-11 09:05:49
  */

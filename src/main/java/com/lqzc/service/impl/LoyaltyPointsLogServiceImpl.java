@@ -20,7 +20,7 @@ import java.util.Date;
 /**
  * 积分流水服务实现类
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【loyalty_points_log(客户积分流水)】的数据库操作Service实现
  * @createDate 2025-07-11 09:05:49
  */

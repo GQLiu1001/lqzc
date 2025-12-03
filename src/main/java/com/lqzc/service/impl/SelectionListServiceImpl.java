@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author 11965
+ * @author rabbittank
  * @description 针对表【selection_list(选品单主表)】的数据库操作Service实现
  * @createDate 2025-07-11 09:05:49
  */

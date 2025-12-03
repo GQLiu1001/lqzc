@@ -14,7 +14,7 @@ import java.util.Map;
  * - 自定义的复杂查询（如订单统计）
  * </p>
  *
- * @author 11965
+ * @author rabbittank
  * @description 针对表【customer_user(前台客户账户)】的数据库操作Mapper
  * @createDate 2025-07-11 09:05:49
  * @Entity com.lqzc.common.domain.CustomerUser

@@ -7,7 +7,7 @@ import com.lqzc.common.records.UserListRecord;
 import org.apache.ibatis.annotations.Select;
 
 /**
-* @author 11965
+* @author rabbittank
 * @description 针对表【user(系统用户表)】的数据库操作Mapper
 * @createDate 2025-07-11 09:05:49
 * @Entity com.lqzc.common.domain.User

@@ -7,7 +7,7 @@ import com.lqzc.service.OrderStatusHistoryService;
 import org.springframework.stereotype.Service;
 
 /**
-* @author 11965
+* @author rabbittank
 * @description 针对表【order_status_history(订单状态变更记录)】的数据库操作Service实现
 * @createDate 2025-07-11 09:05:49
 */
