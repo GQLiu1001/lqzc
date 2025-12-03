@@ -220,24 +220,49 @@ public class MallCouponController {
     }
 
     /**
-     * 初始化优惠券库存到Redis
+     * 初始化优惠券库存到Redis（使用SETNX原子操作，避免重复初始化）
      */
     private void initCouponStock(Long templateId, CouponTemplate template) {
         String stockKey = COUPON_STOCK_KEY + templateId;
+        String lockKey = "coupon:init:lock:" + templateId;
         
-        // 如果Redis中没有库存，从数据库初始化
-        if (Boolean.FALSE.equals(stringRedisTemplate.hasKey(stockKey))) {
-            // 计算剩余库存 = 总发行量 - 已领取数量
-            long receivedCount = customerCouponService.count(
-                    new LambdaQueryWrapper<CustomerCoupon>()
-                            .eq(CustomerCoupon::getTemplateId, templateId)
-            );
-            int remainStock = (template.getTotalIssued() != null ? template.getTotalIssued() : 0) - (int) receivedCount;
-            remainStock = Math.max(0, remainStock);
-            
-            // 设置库存，有效期7天
-            stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(remainStock), 7, TimeUnit.DAYS);
-            log.info("初始化优惠券库存到Redis: templateId={}, remainStock={}", templateId, remainStock);
+        // 先快速检查库存key是否存在（大部分请求直接返回）
+        String existingStock = stringRedisTemplate.opsForValue().get(stockKey);
+        if (existingStock != null) {
+            return; // 已初始化，直接返回
+        }
+        
+        // 使用SETNX获取初始化锁，只有一个线程能初始化
+        Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, TimeUnit.SECONDS);
+        if (Boolean.TRUE.equals(locked)) {
+            try {
+                // 双重检查
+                if (stringRedisTemplate.opsForValue().get(stockKey) != null) {
+                    return;
+                }
+                
+                // 计算剩余库存
+                long receivedCount = customerCouponService.count(
+                        new LambdaQueryWrapper<CustomerCoupon>()
+                                .eq(CustomerCoupon::getTemplateId, templateId)
+                );
+                int remainStock = (template.getTotalIssued() != null ? template.getTotalIssued() : 0) - (int) receivedCount;
+                remainStock = Math.max(0, remainStock);
+                
+                // 设置库存
+                stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(remainStock), 7, TimeUnit.DAYS);
+                log.info("初始化优惠券库存到Redis: templateId={}, remainStock={}", templateId, remainStock);
+            } finally {
+                stringRedisTemplate.delete(lockKey);
+            }
+        }
+        // 未获取到锁的线程，等待一下让初始化完成
+        else {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

@@ -1,0 +1,3 @@
+Label,# Samples,Average,Median,90% Line,95% Line,99% Line,Min,Max,Error %,Throughput,Received KB/sec,Sent KB/sec
+领取优惠券,2000,50,21,137,152,368,5,446,0.000%,800.64051,176.31,190.00
+TOTAL,2000,50,21,137,152,368,5,446,0.000%,800.64051,176.31,190.00
