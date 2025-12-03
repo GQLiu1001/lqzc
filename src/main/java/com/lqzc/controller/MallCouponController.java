@@ -9,12 +9,15 @@ import com.lqzc.common.resp.CouponMarketResp;
 import com.lqzc.common.resp.MyCouponResp;
 import com.lqzc.service.CouponTemplateService;
 import com.lqzc.service.CustomerCouponService;
+import com.lqzc.common.message.CouponReceiveMessage;
+import com.lqzc.config.RabbitMQConfig;
 import com.lqzc.utils.UserContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.web.bind.annotation.*;
@@ -41,6 +44,7 @@ public class MallCouponController {
     private final CouponTemplateService couponTemplateService;
     private final CustomerCouponService customerCouponService;
     private final StringRedisTemplate stringRedisTemplate;
+    private final RabbitTemplate rabbitTemplate;
 
     /** Redis key前缀：优惠券库存 */
     private static final String COUPON_STOCK_KEY = "coupon:stock:";
@@ -161,8 +165,19 @@ public class MallCouponController {
             throw new LianqingException("已达领取上限");
         }
         
-        // 4. 异步保存领券记录到数据库
-        saveCouponRecord(customerId, template);
+        // 4. 发送MQ消息，异步保存领券记录到数据库
+        CouponReceiveMessage message = new CouponReceiveMessage(
+                customerId, 
+                templateId, 
+                template.getTitle(), 
+                template.getValidTo()
+        );
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.COUPON_RECEIVE_EXCHANGE,
+                RabbitMQConfig.COUPON_RECEIVE_ROUTING_KEY,
+                message
+        );
+        log.debug("发送领券消息: customerId={}, templateId={}", customerId, templateId);
         
         return Result.success();
     }
@@ -266,25 +281,4 @@ public class MallCouponController {
         }
     }
 
-    /**
-     * 保存领券记录到数据库
-     */
-    private void saveCouponRecord(Long customerId, CouponTemplate template) {
-        CustomerCoupon coupon = new CustomerCoupon();
-        coupon.setCustomerId(customerId);
-        coupon.setTemplateId(template.getId());
-        coupon.setStatus(0); // 未使用
-        coupon.setCode(generateCouponCode());
-        coupon.setObtainedChannel("MALL");
-        coupon.setExpireTime(template.getValidTo());
-        coupon.setCreateTime(new Date());
-        customerCouponService.save(coupon);
-    }
-
-    /**
-     * 生成优惠券码
-     */
-    private String generateCouponCode() {
-        return "CPN" + System.currentTimeMillis() + String.format("%04d", new Random().nextInt(10000));
-    }
 }
