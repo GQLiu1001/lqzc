@@ -13,6 +13,7 @@ import com.lqzc.common.resp.MallOrderDetailResp;
 import com.lqzc.common.resp.MallOrderListResp;
 import com.lqzc.common.resp.MallOrderPreviewResp;
 import com.lqzc.service.*;
+import com.lqzc.service.coupon.CouponCalculator;
 import com.lqzc.utils.UserContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -55,6 +56,7 @@ public class MallOrderController {
     private final LoyaltyPointsLogService pointsLogService;
     private final CustomerUserService customerUserService;
     private final StringRedisTemplate stringRedisTemplate;
+    private final CouponCalculator couponCalculator;
 
     /** 库存占位Redis key前缀 */
     private static final String STOCK_HOLD_KEY = "order:stock:hold:";
@@ -89,8 +91,10 @@ public class MallOrderController {
             CustomerCoupon coupon = customerCouponService.getById(req.getCouponId());
             if (coupon != null && coupon.getStatus() == 0 && coupon.getCustomerId().equals(customerId)) {
                 CouponTemplate template = couponTemplateService.getById(coupon.getTemplateId());
-                discountAmount = calculateDiscount(template, totalPrice);
-                optimalCoupon = template;
+                if (couponCalculator.canApply(template, totalPrice)) {
+                    discountAmount = couponCalculator.calculateDiscount(template, totalPrice);
+                    optimalCoupon = template;
+                }
             }
         } else {
             // 自动匹配最佳优惠券
@@ -100,16 +104,20 @@ public class MallOrderController {
                             .eq(CustomerCoupon::getStatus, 0)
                             .ge(CustomerCoupon::getExpireTime, new Date())
             );
-            
-            for (CustomerCoupon coupon : availableCoupons) {
-                CouponTemplate template = couponTemplateService.getById(coupon.getTemplateId());
-                if (template != null && canUseCoupon(template, totalPrice)) {
-                    BigDecimal discount = calculateDiscount(template, totalPrice);
-                    if (discount.compareTo(discountAmount) > 0) {
-                        discountAmount = discount;
-                        optimalCoupon = template;
-                    }
-                }
+            Set<Long> templateIds = availableCoupons.stream()
+                    .map(CustomerCoupon::getTemplateId)
+                    .collect(Collectors.toSet());
+            Map<Long, CouponTemplate> templateMap = templateIds.isEmpty()
+                    ? Collections.emptyMap()
+                    : couponTemplateService.listByIds(templateIds).stream()
+                            .collect(Collectors.toMap(CouponTemplate::getId, t -> t));
+
+            CouponCalculator.BestCoupon bestCoupon = couponCalculator
+                    .findBestCoupon(availableCoupons, templateMap, totalPrice)
+                    .orElse(null);
+            if (bestCoupon != null) {
+                discountAmount = bestCoupon.discount();
+                optimalCoupon = bestCoupon.template();
             }
         }
         
@@ -195,8 +203,8 @@ public class MallOrderController {
             CustomerCoupon coupon = customerCouponService.getById(req.getCouponId());
             if (coupon != null && coupon.getStatus() == 0 && coupon.getCustomerId().equals(customerId)) {
                 CouponTemplate template = couponTemplateService.getById(coupon.getTemplateId());
-                if (canUseCoupon(template, totalPrice)) {
-                    discountAmount = calculateDiscount(template, totalPrice);
+                if (couponCalculator.canApply(template, totalPrice)) {
+                    discountAmount = couponCalculator.calculateDiscount(template, totalPrice);
                     couponId = coupon.getId();
                 }
             }
@@ -523,38 +531,6 @@ public class MallOrderController {
         return address.getProvince() + address.getCity() + address.getDistrict() + address.getDetail();
     }
 
-    private boolean canUseCoupon(CouponTemplate template, BigDecimal totalPrice) {
-        if (template == null) return false;
-        if (template.getThresholdAmount() != null && totalPrice.compareTo(template.getThresholdAmount()) < 0) {
-            return false;
-        }
-        Date now = new Date();
-        if (template.getValidFrom() != null && now.before(template.getValidFrom())) return false;
-        if (template.getValidTo() != null && now.after(template.getValidTo())) return false;
-        return true;
-    }
-
-    private BigDecimal calculateDiscount(CouponTemplate template, BigDecimal totalPrice) {
-        if (template == null) return BigDecimal.ZERO;
-        
-        switch (template.getType()) {
-            case 1: // 满减
-                return template.getDiscountAmount() != null ? template.getDiscountAmount() : BigDecimal.ZERO;
-            case 2: // 折扣
-                if (template.getDiscountRate() != null) {
-                    BigDecimal discount = totalPrice.multiply(BigDecimal.ONE.subtract(template.getDiscountRate()));
-                    if (template.getMaxDiscount() != null) {
-                        discount = discount.min(template.getMaxDiscount());
-                    }
-                    return discount;
-                }
-                return BigDecimal.ZERO;
-            case 3: // 现金券
-                return template.getDiscountAmount() != null ? template.getDiscountAmount() : BigDecimal.ZERO;
-            default:
-                return BigDecimal.ZERO;
-        }
-    }
 
     private void saveOrderStatusHistory(Long orderId, Integer fromStatus, Integer toStatus, String remark) {
         OrderStatusHistory history = new OrderStatusHistory();

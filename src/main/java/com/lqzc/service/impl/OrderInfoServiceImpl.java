@@ -29,6 +29,7 @@ import com.lqzc.service.LoyaltyPointsAccountService;
 import com.lqzc.service.LoyaltyPointsLogService;
 import com.lqzc.service.OrderInfoService;
 import com.lqzc.mapper.OrderInfoMapper;
+import com.lqzc.service.coupon.CouponCalculator;
 import com.lqzc.utils.OrderNumberGenerator;
 import jakarta.annotation.Resource;
 import org.redisson.api.RBlockingQueue;
@@ -74,6 +75,8 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
     @Resource
     private RabbitTemplate rabbitTemplate;
+    @Resource
+    private CouponCalculator couponCalculator;
 
     @Override
     public IPage<DispatchOrderFetchRecords> fetch(IPage<DispatchOrderFetchRecords> page, Integer status) {
@@ -281,7 +284,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
                     if (template != null) {
                         // 计算优惠金额
                         BigDecimal totalPrice = orderInfo.getTotalPrice();
-                        BigDecimal discountAmount = calculateCouponDiscount(template, totalPrice);
+                        BigDecimal discountAmount = couponCalculator.calculateDiscount(template, totalPrice);
                         
                         // 更新订单金额
                         orderInfo.setCouponId(couponId);
@@ -308,36 +311,6 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         orderInfoMapper.updateById(orderInfo);
     }
     
-    /**
-     * 计算优惠券优惠金额
-     */
-    private BigDecimal calculateCouponDiscount(CouponTemplate template, BigDecimal totalPrice) {
-        // 检查门槛
-        if (template.getThresholdAmount() != null && totalPrice.compareTo(template.getThresholdAmount()) < 0) {
-            return BigDecimal.ZERO;
-        }
-        
-        switch (template.getType()) {
-            case 1: // 满减券
-            case 3: // 现金券
-                return template.getDiscountAmount() != null ? template.getDiscountAmount() : BigDecimal.ZERO;
-            case 2: // 折扣券（discountRate存储的是小数，如0.9表示9折）
-                if (template.getDiscountRate() != null) {
-                    // 优惠金额 = 总价 × (1 - 折扣率)
-                    // 例如9折：优惠金额 = 69 × (1 - 0.9) = 69 × 0.1 = 6.9
-                    BigDecimal discount = totalPrice.multiply(BigDecimal.ONE.subtract(template.getDiscountRate()));
-                    // 如果有最大优惠限制
-                    if (template.getMaxDiscount() != null && discount.compareTo(template.getMaxDiscount()) > 0) {
-                        return template.getMaxDiscount();
-                    }
-                    return discount;
-                }
-                return BigDecimal.ZERO;
-            default:
-                return BigDecimal.ZERO;
-        }
-    }
-
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void newOrder(OrderNewReq request) {
@@ -471,7 +444,4 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     }
 
 }
-
-
-
 
