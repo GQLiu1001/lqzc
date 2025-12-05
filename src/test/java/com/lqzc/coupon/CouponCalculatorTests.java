@@ -2,10 +2,10 @@ package com.lqzc.coupon;
 
 import com.lqzc.common.domain.CouponTemplate;
 import com.lqzc.common.domain.CustomerCoupon;
-import com.lqzc.service.coupon.CashCouponStrategy;
+import com.lqzc.service.coupon.type.CashCouponStrategy;
 import com.lqzc.service.coupon.CouponCalculator;
-import com.lqzc.service.coupon.DiscountRateCouponStrategy;
-import com.lqzc.service.coupon.FullReductionCouponStrategy;
+import com.lqzc.service.coupon.type.DiscountRateCouponStrategy;
+import com.lqzc.service.coupon.type.FullReductionCouponStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

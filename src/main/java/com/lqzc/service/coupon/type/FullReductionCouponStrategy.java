@@ -1,20 +1,21 @@
-package com.lqzc.service.coupon;
+package com.lqzc.service.coupon.type;
 
 import com.lqzc.common.domain.CouponTemplate;
+import com.lqzc.service.coupon.AbstractCouponDiscountStrategy;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
 /**
- * 现金券策略（type=3）：直接立减固定金额。
- * 依赖父类校验有效期/门槛，额外校验金额为非负。
+ * 满减券策略（type=1）：达到阈值后立减固定金额。
+ * 依赖父类完成门槛/有效期校验，额外校验减免金额为非负。
  */
 @Component
-public class CashCouponStrategy extends AbstractCouponDiscountStrategy {
+public class FullReductionCouponStrategy extends AbstractCouponDiscountStrategy {
 
     @Override
     public int getType() {
-        return 3;
+        return 1;
     }
 
     @Override

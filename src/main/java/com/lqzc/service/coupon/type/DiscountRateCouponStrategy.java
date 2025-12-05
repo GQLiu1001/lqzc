@@ -1,6 +1,7 @@
-package com.lqzc.service.coupon;
+package com.lqzc.service.coupon.type;
 
 import com.lqzc.common.domain.CouponTemplate;
+import com.lqzc.service.coupon.AbstractCouponDiscountStrategy;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
