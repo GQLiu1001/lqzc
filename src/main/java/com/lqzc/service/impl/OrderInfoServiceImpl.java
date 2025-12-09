@@ -18,17 +18,17 @@ import com.lqzc.common.records.DispatchOrderListRecord;
 import com.lqzc.common.records.OrderInfoRecords;
 import com.lqzc.common.req.OrderDispatchReq;
 import com.lqzc.common.req.OrderNewReq;
-import com.lqzc.config.RabbitMQConfig;
 import com.lqzc.mapper.CustomerUserMapper;
 import com.lqzc.mapper.OrderDetailMapper;
-import com.lqzc.common.domain.LoyaltyPointsAccount;
-import com.lqzc.common.domain.LoyaltyPointsLog;
+import com.lqzc.mapper.OrderInfoMapper;
+import com.lqzc.order.OrderContext;
+import com.lqzc.order.state.OrderState;
+import com.lqzc.order.OrderStateFactory;
 import com.lqzc.service.CouponTemplateService;
 import com.lqzc.service.CustomerCouponService;
 import com.lqzc.service.LoyaltyPointsAccountService;
 import com.lqzc.service.LoyaltyPointsLogService;
 import com.lqzc.service.OrderInfoService;
-import com.lqzc.mapper.OrderInfoMapper;
 import com.lqzc.utils.OrderNumberGenerator;
 import jakarta.annotation.Resource;
 import org.redisson.api.RBlockingQueue;
@@ -74,6 +74,8 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
     @Resource
     private RabbitTemplate rabbitTemplate;
+    @Resource
+    private OrderStateFactory orderStateFactory;
 
     @Override
     public IPage<DispatchOrderFetchRecords> fetch(IPage<DispatchOrderFetchRecords> page, Integer status) {
@@ -133,25 +135,18 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
 
     @Override
-    public void changeOrderDispatchStatus(String orderNo, int i) {
-        int row = orderInfoMapper.changeDispatchStatusByOrderNo(orderNo,i);
-        if (row == 0) {
-            throw new LianqingException("更改订单信息失败");
-        }
-        if (i == DispatchConstant.FINISH_DISPATCH){
-            // 司机送达，更新订单状态为"待确认"(3)
-            OrderInfo orderInfo = orderInfoMapper.selectOne(
+    public void changeOrderDispatchStatus(String orderNo, int status) {
+        OrderInfo orderInfo = orderInfoMapper.selectOne(
                 new LambdaQueryWrapper<OrderInfo>().eq(OrderInfo::getOrderNo, orderNo)
-            );
-            if (orderInfo != null) {
-                orderInfo.setOrderStatus(3); // 待确认
-                orderInfo.setReceiveTime(new Date()); // 记录送达时间
-                orderInfoMapper.updateById(orderInfo);
-            }
-            // 发送加钱消息
-            System.out.println("发送加钱消息: " + orderNo);
-            rabbitTemplate.convertAndSend(RabbitMQConfig.ADD_MONEY_EXCHANGE, RabbitMQConfig.ADD_MONEY_ROUTING_KEY, orderNo);
+        );
+        if (orderInfo == null) {
+            throw new LianqingException("订单不存在");
         }
+        orderInfo.setDispatchStatus(status);
+        OrderContext context = buildContext(orderInfo);
+        context.saveOrder();
+        OrderState state = orderStateFactory.getState(orderInfo);
+        state.onEnter(context);
     }
 
     /**
@@ -166,61 +161,10 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         if (orderInfo == null) {
             throw new LianqingException("订单不存在");
         }
-        
-        // 验证订单状态必须是"待确认"(3)
-        if (orderInfo.getOrderStatus() != 3) {
-            throw new LianqingException("订单状态不正确，无法确认收货");
-        }
-        
-        // 更新订单状态为"已完成"(4)
-        orderInfo.setOrderStatus(4);
-        orderInfo.setUpdateTime(new Date());
-        orderInfoMapper.updateById(orderInfo);
-        
-        // 计算并添加积分（实付金额，1元=1积分，去除小数点）
-        if (orderInfo.getCustomerId() != null && orderInfo.getPayableAmount() != null) {
-            int earnedPoints = orderInfo.getPayableAmount().intValue(); // 去除小数点
-            
-            if (earnedPoints > 0) {
-                // 获取或创建积分账户
-                LoyaltyPointsAccount account = pointsAccountService.getOne(
-                    new LambdaQueryWrapper<LoyaltyPointsAccount>()
-                        .eq(LoyaltyPointsAccount::getCustomerId, orderInfo.getCustomerId())
-                );
-                
-                if (account == null) {
-                    // 创建积分账户
-                    account = new LoyaltyPointsAccount();
-                    account.setCustomerId(orderInfo.getCustomerId());
-                    account.setBalance(0);
-                    account.setTotalEarned(0);
-                    account.setTotalSpent(0);
-                    account.setFrozen(0);
-                    account.setCreateTime(new Date());
-                    pointsAccountService.save(account);
-                }
-                
-                // 更新积分
-                int newBalance = account.getBalance() + earnedPoints;
-                int newTotalEarned = account.getTotalEarned() + earnedPoints;
-                
-                account.setBalance(newBalance);
-                account.setTotalEarned(newTotalEarned);
-                account.setUpdateTime(new Date());
-                pointsAccountService.updateById(account);
-                
-                // 记录积分日志
-                LoyaltyPointsLog log = new LoyaltyPointsLog();
-                log.setCustomerId(orderInfo.getCustomerId());
-                log.setChangeAmount(earnedPoints); // 正数表示增加
-                log.setBalanceAfter(newBalance);
-                log.setSourceType(1); // 1=下单赠送
-                log.setOrderId(orderInfo.getId());
-                log.setRemark(isAdmin ? "订单完成赠送积分(后台确认)" : "订单完成赠送积分(用户确认)");
-                log.setCreateTime(new Date());
-                pointsLogService.save(log);
-            }
-        }
+        OrderContext context = buildContext(orderInfo);
+        context.setAdminOperation(isAdmin);
+        OrderState state = orderStateFactory.getState(orderInfo);
+        state.confirm(context);
     }
 
     @Override
@@ -450,6 +394,10 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     @Override
     public IPage<DispatchOrderFetchRecords> fetch(IPage<DispatchOrderFetchRecords> page, Integer status, String startStr, String endStr, String customerPhone) {
         return orderInfoMapper.fetchDispatchOrder(page,status,startStr,endStr,customerPhone);
+    }
+
+    private OrderContext buildContext(OrderInfo orderInfo) {
+        return new OrderContext(orderInfo, orderInfoMapper, pointsAccountService, pointsLogService, rabbitTemplate);
     }
 
     //生成订单之后，发送延迟消息
