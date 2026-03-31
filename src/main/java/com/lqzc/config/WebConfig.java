@@ -44,7 +44,6 @@ public class WebConfig implements WebMvcConfigurer {
                         "/mall/customer/reset-password",
                         "/mall/items/**",        // 商品列表不需要登录
                         "/mall/selection/**",    // 选品单不需要登录
-                        "/mall/ai/**",           // AI助手不需要登录
                         "/mall/coupon/market"    // 领券中心可公开浏览
                 );
 

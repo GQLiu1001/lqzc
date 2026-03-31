@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, X, Send, Bot, User } from "lucide-react";
+import { MessageCircle, X, Send, Bot, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getCustomerToken, isLoggedIn } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 
 interface Message {
@@ -14,14 +12,27 @@ interface Message {
   timestamp: Date;
 }
 
+interface TaoChatResponse {
+  session_id: string;
+  reply: string;
+  steps_used: number;
+  tool_events: Array<{
+    tool_name: string;
+    arguments: Record<string, unknown>;
+    result_preview: string;
+  }>;
+}
+
 const AIAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 循环提示语
   const tips = [
@@ -66,19 +77,7 @@ const AIAssistant = () => {
 
   // 发送消息
   const sendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
-
-    // 检查是否已登录
-    if (!isLoggedIn()) {
-      const loginHintMessage: Message = {
-        id: generateId(),
-        content: "请先登录后再使用智能客服功能～ 点击右上角的用户图标进行登录。",
-        isUser: false,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, loginHintMessage]);
-      return;
-    }
+    if (!inputValue.trim() || isLoading || isUploading) return;
 
     const userMessage: Message = {
       id: generateId(),
@@ -110,90 +109,31 @@ const AIAssistant = () => {
       }
       
       abortControllerRef.current = new AbortController();
-      
-      // 构建请求头（如果已登录则带上token）
-      const headers: Record<string, string> = {
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-      };
-      
-      const customerToken = getCustomerToken();
-      if (customerToken) {
-        headers['X-Customer-Token'] = customerToken;
-      }
-      
-      const response = await fetch(`/api/mall/ai/stream-chat?message=${encodeURIComponent(userMessage.content)}&sessionId=${encodeURIComponent(sessionId)}`, {
-        method: 'GET',
-        headers,
+
+      const response = await fetch("/pyapi/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage.content,
+          session_id: sessionId,
+        }),
         signal: abortControllerRef.current?.signal,
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      const result = (await response.json()) as TaoChatResponse;
+      const reply = result.reply?.trim() || "抱歉，我暂时没有可用回复，请稍后再试。";
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('无法获取响应流');
-      }
-
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let buffer = "";
-
-      // 读取流数据
-      const readStream = async () => {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split("\n\n");
-            buffer = events.pop() || "";
-
-            for (const event of events) {
-              const dataLines = event
-                .split("\n")
-                .filter((line) => line.startsWith("data:"));
-
-              if (dataLines.length === 0) continue;
-
-              const data = dataLines
-                  .map((line) => line.slice(5))
-                  .join("\n");
-
-              if (data === "[DONE]") {
-                reader.cancel();
-                return;
-              }
-
-              fullContent += data;
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === aiMessageId ? { ...msg, content: fullContent } : msg
-                )
-              );
-            }
-          }
-        } catch (error) {
-          if ((error as any).name !== "AbortError") {
-            console.error("读取流错误:", error);
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === aiMessageId
-                  ? { ...msg, content: fullContent || "抱歉，我遇到了一些问题，请稍后再试。" }
-                  : msg
-              )
-            );
-          }
-        } finally {
-          setIsLoading(false);
-          reader.releaseLock();
-        }
-      };
-
-      readStream();
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMessageId ? { ...msg, content: reply } : msg
+        )
+      );
+      setIsLoading(false);
 
     } catch (error) {
       console.error('发送消息失败:', error);
@@ -206,6 +146,69 @@ const AIAssistant = () => {
       );
       setIsLoading(false);
     }
+  };
+
+  // 上传文件（Demo: 文本文件）
+  const handlePickFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    const sessionId = await getSessionId();
+
+    for (const file of files) {
+      const loadingMessageId = generateId();
+      setMessages(prev => [
+        ...prev,
+        {
+          id: loadingMessageId,
+          content: `正在上传《${file.name}》...`,
+          isUser: false,
+          timestamp: new Date()
+        }
+      ]);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("session_id", sessionId);
+
+        const response = await fetch("/pyapi/files/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const successText = `已上传《${file.name}》，已切片 ${result.chunk_count ?? 0} 段。现在可以直接问我这份文档的内容了。`;
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === loadingMessageId ? { ...msg, content: successText } : msg
+          )
+        );
+      } catch (error) {
+        console.error("文件上传失败:", error);
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === loadingMessageId
+              ? { ...msg, content: `《${file.name}》上传失败，请稍后重试。` }
+              : msg
+          )
+        );
+      }
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setIsUploading(false);
   };
 
   // 处理Enter键发送
@@ -254,11 +257,7 @@ const AIAssistant = () => {
                   <div className="text-center text-gray-500 text-sm py-8">
                     <Bot className="h-8 w-8 mx-auto mb-2 text-blue-500" />
                     <p>您好！我是您的专属瓷砖顾问</p>
-                    {isLoggedIn() ? (
-                      <p>有什么问题可以随时问我～</p>
-                    ) : (
-                      <p className="text-amber-600">请先登录后再使用智能客服</p>
-                    )}
+                    <p>有什么问题可以随时问我～</p>
                   </div>
                 )}
                 {messages.map((message) => (
@@ -297,17 +296,35 @@ const AIAssistant = () => {
           {/* 输入区域 */}
           <div className="p-4 border-t border-gray-200 flex-shrink-0">
             <div className="flex space-x-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.log,text/plain"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button
+                onClick={handlePickFile}
+                disabled={isLoading || isUploading}
+                size="icon"
+                variant="outline"
+                className="flex-shrink-0"
+                title="上传文本文件"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
               <Input
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="输入您的问题..."
-                disabled={isLoading}
+                disabled={isLoading || isUploading}
                 className="flex-1"
               />
               <Button
                 onClick={sendMessage}
-                disabled={!inputValue.trim() || isLoading}
+                disabled={!inputValue.trim() || isLoading || isUploading}
                 size="icon"
                 className="bg-blue-600 hover:bg-blue-700 flex-shrink-0"
               >
