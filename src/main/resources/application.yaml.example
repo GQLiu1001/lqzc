@@ -102,6 +102,19 @@ jwt:
 server:
   port: 8001  # 应用端口
 
+# 抢券接口 Sentinel 配置
+lqzc:
+  coupon:
+    sentinel:
+      receive-qps: 600
+      template-hotspot-qps: 300
+      slow-request-ms: 200
+      slow-request-ratio-threshold: 0.5
+      exception-ratio-threshold: 0.4
+      min-request-amount: 20
+      stat-interval-ms: 10000
+      circuit-break-seconds: 10
+
 # 应用配置
 spring:
   application:

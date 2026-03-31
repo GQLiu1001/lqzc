@@ -36,6 +36,7 @@
         <weixin-java-miniapp>4.5.5.B</weixin-java-miniapp>
         <spring-ai-alibaba>1.1.0.0-M5</spring-ai-alibaba>
         <milvus>2.6.9</milvus>
+        <sentinel>1.8.9</sentinel>
     </properties>
     <dependencies>
         <dependency>
@@ -137,6 +138,26 @@
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
             <version>3.23.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-core</artifactId>
+            <version>${sentinel}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-annotation-aspectj</artifactId>
+            <version>${sentinel}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-parameter-flow-control</artifactId>
+            <version>${sentinel}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-transport-simple-http</artifactId>
+            <version>${sentinel}</version>
         </dependency>
 <!--        <dependency>-->
 <!--            <groupId>org.springframework.data</groupId>-->
