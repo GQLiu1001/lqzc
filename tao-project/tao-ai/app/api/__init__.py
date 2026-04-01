@@ -1,0 +1,2 @@
+"""FastAPI routes."""
+

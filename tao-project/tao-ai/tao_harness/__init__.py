@@ -1,2 +1,0 @@
-"""Tao Harness package."""
-

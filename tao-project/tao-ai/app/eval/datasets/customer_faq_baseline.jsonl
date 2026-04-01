@@ -1,0 +1,4 @@
+{"case_id":"customer_order_timeline","message":"订单 7700123456 什么时候发货？","expected":{"agent":"customer_service","skill":"order_status_explain_skill","requires_approval":false,"min_evidence_hits":0}}
+{"case_id":"customer_after_sale","message":"订单 7700123456 收到后有破损，怎么申请售后？","expected":{"agent":"customer_service","skill":"after_sale_intake_skill","requires_approval":false,"min_evidence_hits":0}}
+{"case_id":"customer_refund_policy","message":"这单想仅退款，需要什么材料？","expected":{"agent":"customer_service","skill":"refund_policy_skill","requires_approval":true,"min_evidence_hits":0}}
+{"case_id":"customer_reply_polish","message":"帮我润色一段客服道歉回复","expected":{"agent":"customer_service","skill":"customer_reply_draft_skill","requires_approval":false,"min_evidence_hits":0}}

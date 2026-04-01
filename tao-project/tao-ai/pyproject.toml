@@ -1,15 +1,22 @@
 [project]
-name = "tao-harness"
-version = "0.1.0"
-description = "A minimal business-agent harness for lqzc, built around Ollama, FastAPI, tools, and SQLite."
+name = "agent-runtime"
+version = "0.2.0"
+description = "Agent runtime for lqzc based on LangChain, LangGraph, Milvus, and MySQL."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "httpx>=0.28.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-ollama>=0.2.0",
+    "langgraph>=0.2.0",
     "mcp>=1.26.0",
-    "psycopg[binary]>=3.2.1",
-    "python-multipart>=0.0.12",
+    "pydantic>=2.7.0",
+    "prometheus-client>=0.20.0",
+    "psutil>=6.0.0",
+    "pymilvus>=2.4.5",
+    "pymysql>=1.1.1",
     "python-dotenv>=1.0.1",
     "uvicorn[standard]>=0.34.0",
 ]
@@ -20,4 +27,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["tao_harness*"]
+include = ["app*"]
