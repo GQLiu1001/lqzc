@@ -1,3 +1,5 @@
+"""提供与回放相关的实现。"""
+
 from __future__ import annotations
 
 import time
@@ -12,6 +14,7 @@ if TYPE_CHECKING:
 
 
 def _keyword_pass(answer: str, case: EvalCase) -> bool:
+    """检查回答内容是否满足关键词预期。"""
     expected = case.expected
     text = answer.lower().strip()
     if not text:
@@ -30,6 +33,7 @@ def _keyword_pass(answer: str, case: EvalCase) -> bool:
 
 
 def _route_pass(case: EvalCase, *, actual_agent: str, actual_skill: str) -> bool:
+    """检查路由结果是否符合预期 agent / skill。"""
     expected = case.expected
     if expected.agent and expected.agent != actual_agent:
         return False
@@ -39,6 +43,7 @@ def _route_pass(case: EvalCase, *, actual_agent: str, actual_skill: str) -> bool
 
 
 def _approval_pass(case: EvalCase, *, actual_requires_approval: bool) -> bool:
+    """检查审批触发结果是否符合预期。"""
     expected_value = case.expected.requires_approval
     if expected_value is None:
         return True
@@ -46,6 +51,7 @@ def _approval_pass(case: EvalCase, *, actual_requires_approval: bool) -> bool:
 
 
 def _retrieval_pass(case: EvalCase, *, retrieval_hits: int) -> bool:
+    """检查检索命中数是否达到最低要求。"""
     threshold = case.expected.min_evidence_hits
     if threshold is None:
         threshold = 1
@@ -53,6 +59,11 @@ def _retrieval_pass(case: EvalCase, *, retrieval_hits: int) -> bool:
 
 
 async def replay_case(workflow: SupervisorWorkflow, case: EvalCase) -> EvalCaseResult:
+    """回放单条评测用例。
+
+    它会真的走一遍生产工作流，只是输入来自测试数据集。
+    最后再把实际输出和期望结果进行比对，生成 `EvalCaseResult`。
+    """
     payload = ChatRequest(
         session_id=case.session_id,
         tenant_id=case.tenant_id,
@@ -64,6 +75,7 @@ async def replay_case(workflow: SupervisorWorkflow, case: EvalCase) -> EvalCaseR
     try:
         _, _, output = await workflow.run_chat(payload)
     except Exception as exc:
+        # 如果工作流直接抛异常，这条 case 视为失败，并把错误记进结果里。
         return EvalCaseResult(
             case_id=case.case_id,
             message=case.message,
@@ -76,6 +88,7 @@ async def replay_case(workflow: SupervisorWorkflow, case: EvalCase) -> EvalCaseR
         )
 
     latency_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+    # 下面这些字段就是后面算评测指标时要用到的基础统计量。
     retrieval_hits = len(output.evidence)
     tool_calls_total = len(output.tool_trace)
     tool_calls_success = sum(1 for item in output.tool_trace if item.status.upper().startswith("SUCCESS"))

@@ -1,3 +1,5 @@
+"""提供与routes聊天相关的实现。"""
+
 from __future__ import annotations
 
 import logging
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(payload: ChatRequest) -> ChatResponse:
+    """处理聊天请求，并返回标准化响应。"""
     logger.info(
         "chat.request session_id=%s tenant_id=%s user_id=%s message_len=%s",
         payload.session_id,

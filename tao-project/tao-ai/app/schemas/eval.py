@@ -1,9 +1,12 @@
+"""提供与评测相关的实现。"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
 
 class EvalCaseExpected(BaseModel):
+    """定义评测CASEexpected，用于承载当前模块中的核心逻辑。"""
     agent: str | None = None
     skill: str | None = None
     requires_approval: bool | None = None
@@ -13,6 +16,7 @@ class EvalCaseExpected(BaseModel):
 
 
 class EvalCase(BaseModel):
+    """定义评测CASE，用于承载当前模块中的核心逻辑。"""
     case_id: str
     message: str
     session_id: str | None = None
@@ -24,6 +28,7 @@ class EvalCase(BaseModel):
 
 
 class EvalCaseResult(BaseModel):
+    """定义评测CASEresult，用于承载当前模块中的核心逻辑。"""
     case_id: str
     message: str
     expected_agent: str | None = None
@@ -46,6 +51,7 @@ class EvalCaseResult(BaseModel):
 
 
 class EvalRunSummary(BaseModel):
+    """定义评测RUNsummary，用于承载当前模块中的核心逻辑。"""
     run_id: str
     dataset_name: str
     status: str
@@ -63,5 +69,6 @@ class EvalRunSummary(BaseModel):
 
 
 class EvalRunDetail(BaseModel):
+    """定义评测RUNdetail，用于承载当前模块中的核心逻辑。"""
     summary: EvalRunSummary
     cases: list[EvalCaseResult] = Field(default_factory=list)

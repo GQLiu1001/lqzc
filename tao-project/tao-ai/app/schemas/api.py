@@ -1,3 +1,5 @@
+"""提供与API相关的实现。"""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -10,6 +12,10 @@ from app.schemas.task import TaskRecord
 
 
 class ChatRequest(BaseModel):
+    """聊天接口入参。
+
+    这是前端调用 `/chat` 或 `/tasks/execute` 时最常见的请求体结构。
+    """
     session_id: str | None = None
     user_id: str | None = None
     tenant_id: str | None = None
@@ -18,6 +24,11 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    """聊天接口出参。
+
+    它既包含用户最关心的 `answer/reply`，
+    也包含调试和前端展示常用的 `agent/skill/evidence/tool_events/status`。
+    """
     task_id: str
     session_id: str
     agent: str
@@ -32,6 +43,10 @@ class ChatResponse(BaseModel):
 
     @classmethod
     def from_agent_output(cls, *, task_id: str, session_id: str, output: AgentOutput) -> "ChatResponse":
+        """把工作流输出对象转换成 API 层响应。
+
+        这样工作流层和接口层就不会直接耦合在一起。
+        """
         return cls(
             task_id=task_id,
             session_id=session_id,
@@ -48,10 +63,15 @@ class ChatResponse(BaseModel):
 
 
 class TaskExecuteRequest(ChatRequest):
+    """任务执行接口入参。
+
+    当前它直接复用了 ChatRequest 的全部字段。
+    """
     pass
 
 
 class TaskApproveRequest(BaseModel):
+    """审批接口入参。"""
     task_id: str
     approval_action: Literal["approve", "reject", "edit_and_approve"]
     approver_id: str
@@ -59,6 +79,7 @@ class TaskApproveRequest(BaseModel):
 
 
 class EvalRunRequest(BaseModel):
+    """启动评测时的请求体。"""
     dataset_name: str = "smoke"
     max_cases: int | None = None
     stop_on_error: bool = False
@@ -66,6 +87,10 @@ class EvalRunRequest(BaseModel):
 
 
 class EvalRunResponse(BaseModel):
+    """评测结果响应体。
+
+    默认会返回汇总指标；如果 `include_cases=True`，还会附带 case 详情。
+    """
     run_id: str
     dataset_name: str
     status: str
@@ -90,6 +115,7 @@ class EvalRunResponse(BaseModel):
         include_cases: bool = False,
         cases: list[EvalCaseResult] | None = None,
     ) -> "EvalRunResponse":
+        """把评测汇总对象转换成 API 响应。"""
         return cls(
             run_id=summary.run_id,
             dataset_name=summary.dataset_name,
@@ -110,4 +136,5 @@ class EvalRunResponse(BaseModel):
 
 
 class TaskStatusResponse(BaseModel):
+    """任务状态查询接口出参。"""
     task: TaskRecord

@@ -1,3 +1,5 @@
+"""提供与仓储工作流相关的实现。"""
+
 from __future__ import annotations
 
 from app.agents.warehouse.agent import WarehouseAgent
@@ -9,6 +11,7 @@ from app.workflows.domain_subworkflow import DomainSubWorkflow
 
 
 class WarehouseWorkflow(DomainSubWorkflow):
+    """封装仓储工作流，负责把多个步骤按状态图串联起来执行。"""
     def __init__(
         self,
         *,
@@ -18,12 +21,14 @@ class WarehouseWorkflow(DomainSubWorkflow):
         business_tools: LQZCBusinessTools,
         approval_tool: ApprovalTool,
     ) -> None:
+        """初始化仓储工作流，把运行时依赖和基础状态准备好。"""
         async def _answer(
             message: str,
             context: str,
             skill_instruction: str,
             response_contract: str,
         ) -> str:
+            """作为内部辅助步骤，完成answer相关处理。"""
             return await warehouse_agent.answer(
                 message=message,
                 context=context,

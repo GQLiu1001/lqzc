@@ -1,3 +1,5 @@
+"""提供与MySQL存储相关的实现。"""
+
 from __future__ import annotations
 
 import json
@@ -13,7 +15,20 @@ from app.schemas.task import TaskRecord, TaskStatus
 
 
 class MySQLStore:
+    """底层 MySQL 访问层。
+
+    这是项目里最靠近数据库的一层：
+    - 建表
+    - 写消息
+    - 写任务
+    - 写工具轨迹
+    - 写检索轨迹
+    - 写审批记录
+
+    上层工作流尽量不直接碰 SQL，而是通过这里统一访问数据库。
+    """
     def __init__(self) -> None:
+        """准备数据库连接参数，并在启动时自动补齐运行所需表结构。"""
         self._connection_kwargs = {
             "host": settings.mysql_host,
             "port": settings.mysql_port,
@@ -28,9 +43,11 @@ class MySQLStore:
         self._init_schema()
 
     def _connect(self):
+        """创建一个新的 MySQL 连接。"""
         return pymysql.connect(**self._connection_kwargs)
 
     def ping(self) -> tuple[bool, str | None]:
+        """做一次最简单的数据库健康检查。"""
         try:
             with self._connect() as conn:
                 with conn.cursor() as cur:
@@ -41,6 +58,21 @@ class MySQLStore:
             return False, str(exc)
 
     def _init_schema(self) -> None:
+        """初始化运行时表结构。
+
+        这段代码很适合你从整体上理解“系统都在数据库里记录了什么”。
+        大概有几类表：
+        - `ai_sessions`：会话
+        - `ai_messages`：消息历史
+        - `ai_tasks`：任务主表
+        - `ai_tool_traces`：工具调用轨迹
+        - `ai_retrieval_traces`：检索轨迹
+        - `ai_approvals`：审批记录
+        - `ai_action_executions`：审批通过后的动作执行记录
+        - `ai_eval_*`：评测相关数据
+
+        也就是说，这个系统不是“只返回一段文本”，而是把整个执行过程都尽量结构化落库。
+        """
         statements = [
             """
             CREATE TABLE IF NOT EXISTS ai_sessions (
@@ -208,6 +240,7 @@ class MySQLStore:
                 self._ensure_tool_trace_result_json_column(cur)
 
     def _column_exists(self, cur: DictCursor, *, table_name: str, column_name: str) -> bool:
+        """判断某张表里是否已存在指定字段。"""
         cur.execute(
             """
             SELECT COUNT(*) AS total
@@ -222,6 +255,11 @@ class MySQLStore:
         return int(row.get("total") or 0) > 0
 
     def _ensure_tool_trace_result_json_column(self, cur: DictCursor) -> None:
+        """确保工具轨迹表具备 `result_json` 字段。
+
+        这是一个很典型的“轻量自修复”写法：
+        如果旧环境还没升级到新字段，启动时自动补列。
+        """
         has_column = self._column_exists(cur, table_name="ai_tool_traces", column_name="result_json")
         if not has_column:
             cur.execute(
@@ -233,6 +271,11 @@ class MySQLStore:
         self._has_tool_trace_result_json = True
 
     def ensure_session(self, session_id: str | None, *, tenant_id: str | None, user_id: str | None) -> str:
+        """确保会话存在；如果不存在就自动创建。
+
+        这样上层不需要关心“这是新会话还是旧会话”，统一先调用这里即可。
+        """
+        # 前端如果没传 session_id，就在这里生成一个新的。
         resolved = (session_id or "").strip() or uuid.uuid4().hex
         with self._connect() as conn:
             with conn.cursor() as cur:
@@ -249,6 +292,7 @@ class MySQLStore:
         return resolved
 
     def append_message(self, *, session_id: str, role: str, content: str) -> None:
+        """向消息表写入一条对话记录。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -257,6 +301,7 @@ class MySQLStore:
                 )
 
     def list_messages(self, *, session_id: str, limit: int = 40) -> list[dict[str, Any]]:
+        """读取指定会话最近若干条消息，并按时间正序返回。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -281,6 +326,12 @@ class MySQLStore:
         user_id: str | None,
         user_message: str,
     ) -> str:
+        """创建任务主记录。
+
+        task 表示“一次具体请求”的生命周期，和 session 的关系是：
+        - session 偏向对话会话
+        - task 偏向单次执行
+        """
         task_id = uuid.uuid4().hex
         with self._connect() as conn:
             with conn.cursor() as cur:
@@ -303,6 +354,10 @@ class MySQLStore:
         risk_level: str | None = None,
         final_response: str | None = None,
     ) -> None:
+        """按需更新任务字段。
+
+        这里采用“只传什么就更新什么”的方式，避免每次 update 都把整行数据重写。
+        """
         updates: list[str] = []
         params: list[Any] = []
         if status is not None:
@@ -331,6 +386,7 @@ class MySQLStore:
                 cur.execute(sql, tuple(params))
 
     def get_task(self, *, task_id: str) -> TaskRecord | None:
+        """读取单个任务详情，并转换成 `TaskRecord`。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -361,6 +417,15 @@ class MySQLStore:
         )
 
     def list_tool_traces(self, *, task_id: str, limit: int = 200) -> list[dict[str, Any]]:
+        """读取任务的工具调用轨迹，并做兼容性解析。
+
+        这个方法有点长，主要是因为线上历史数据格式可能不完全一致：
+        - 新版本可能有 `result_json`
+        - 老版本可能只有 `result_preview`
+        - JSON 字段在不同驱动下可能是 dict，也可能是字符串
+
+        所以这里会尽量把各种存储形态都统一还原成 Python 对象。
+        """
         with self._connect() as conn:
             with conn.cursor() as cur:
                 if self._has_tool_trace_result_json:
@@ -398,6 +463,7 @@ class MySQLStore:
                     parsed = None
                 if isinstance(parsed, dict):
                     arguments = parsed
+            # result 也要做同样的兼容恢复。
             parsed_result: Any | None = None
             raw_result = row.get("result_json")
             if isinstance(raw_result, (dict, list)):
@@ -439,6 +505,11 @@ class MySQLStore:
         status: str,
         result: Any | None = None,
     ) -> None:
+        """写入一条工具轨迹。
+
+        `result_preview` 主要用于快速查看；
+        `result_json` 则用于后续更可靠地回放和解析。
+        """
         result_json: str | None = None
         if result is not None:
             try:
@@ -472,6 +543,7 @@ class MySQLStore:
                     )
 
     def insert_retrieval_trace(self, *, task_id: str, query_text: str, domain: str, collection_name: str, hits: int) -> None:
+        """写入一条检索轨迹。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -483,6 +555,10 @@ class MySQLStore:
                 )
 
     def create_or_update_approval(self, *, task_id: str, approval_action: str, status: str, approver_id: str | None, comment: str | None) -> None:
+        """创建或更新审批记录。
+
+        同一个 task 在审批表里只保留一条记录，所以这里使用 upsert。
+        """
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -499,6 +575,7 @@ class MySQLStore:
                 )
 
     def get_approval(self, *, task_id: str) -> dict[str, Any] | None:
+        """读取指定任务的审批记录。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -518,6 +595,14 @@ class MySQLStore:
         approver_id: str | None,
         comment: str | None,
     ) -> dict[str, Any]:
+        """创建或复用一条动作执行记录。
+
+        `ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)` 这一招很实用：
+        - 如果是第一次执行，就插入新记录
+        - 如果同一个幂等键已存在，就拿回原记录的 id
+
+        这样上层就能统一按“拿到 execution row”继续处理。
+        """
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -564,6 +649,7 @@ class MySQLStore:
         response: dict[str, Any] | None = None,
         error_message: str | None = None,
     ) -> None:
+        """更新动作执行状态和返回结果。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -582,7 +668,9 @@ class MySQLStore:
 
     @staticmethod
     def _normalize_action_execution_row(row: dict[str, Any]) -> dict[str, Any]:
+        """把动作执行表的一行数据规范化成更好用的 dict。"""
         def _decode(value: Any) -> Any:
+            """尽量把 JSON 字段解码成 Python 对象。"""
             if isinstance(value, (dict, list)):
                 return value
             if isinstance(value, str):
@@ -609,6 +697,7 @@ class MySQLStore:
         }
 
     def create_eval_run(self, *, dataset_name: str, total_cases: int) -> str:
+        """创建一条评测运行主记录。"""
         run_id = uuid.uuid4().hex
         with self._connect() as conn:
             with conn.cursor() as cur:
@@ -622,6 +711,7 @@ class MySQLStore:
         return run_id
 
     def finish_eval_run(self, *, summary: EvalRunSummary) -> None:
+        """把评测汇总结果写回主记录。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -660,6 +750,7 @@ class MySQLStore:
                 )
 
     def insert_eval_case_result(self, *, run_id: str, result: EvalCaseResult) -> None:
+        """写入单条评测 case 的结果。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -707,6 +798,7 @@ class MySQLStore:
                 )
 
     def list_eval_runs(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        """列出历史评测运行摘要。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -726,6 +818,7 @@ class MySQLStore:
         return [self._normalize_eval_run_row(row) for row in rows]
 
     def get_eval_run(self, *, run_id: str) -> dict[str, Any] | None:
+        """读取单次评测主记录。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -746,6 +839,7 @@ class MySQLStore:
         return self._normalize_eval_run_row(row)
 
     def list_eval_case_results(self, *, run_id: str) -> list[dict[str, Any]]:
+        """读取某次评测下全部 case 结果。"""
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -765,6 +859,7 @@ class MySQLStore:
                 )
                 rows = cur.fetchall()
 
+        # 这里把数据库行转换成接口层更容易直接返回的结构。
         result: list[dict[str, Any]] = []
         for row in rows:
             result.append(
@@ -798,6 +893,7 @@ class MySQLStore:
 
     @staticmethod
     def _normalize_eval_run_row(row: dict[str, Any]) -> dict[str, Any]:
+        """把评测主记录的一行结果转换成标准字典。"""
         return {
             "run_id": row["run_id"],
             "dataset_name": row["dataset_name"],

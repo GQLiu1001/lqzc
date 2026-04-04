@@ -1,3 +1,5 @@
+"""提供与主入口相关的实现。"""
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -29,11 +31,13 @@ app.include_router(eval_router)
 
 @app.on_event("startup")
 async def _startup_metrics() -> None:
+    """作为内部辅助步骤，完成startup指标相关处理。"""
     if settings.enable_metrics:
         await metrics.startup()
 
 
 @app.on_event("shutdown")
 async def _shutdown_metrics() -> None:
+    """作为内部辅助步骤，完成shutdown指标相关处理。"""
     if settings.enable_metrics:
         await metrics.shutdown()

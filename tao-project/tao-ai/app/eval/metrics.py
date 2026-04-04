@@ -1,15 +1,19 @@
+"""提供与指标相关的实现。"""
+
 from __future__ import annotations
 
 from app.schemas.eval import EvalCaseResult
 
 
 def _safe_rate(numerator: int | float, denominator: int | float) -> float:
+    """作为内部辅助步骤，完成SAFERATE相关处理。"""
     if denominator <= 0:
         return 1.0
     return float(numerator) / float(denominator)
 
 
 def compute_metrics(results: list[EvalCaseResult]) -> dict[str, float]:
+    """处理compute指标相关逻辑，并返回当前步骤需要的结果。"""
     total_cases = len(results)
     passed_cases = sum(1 for item in results if item.passed)
 

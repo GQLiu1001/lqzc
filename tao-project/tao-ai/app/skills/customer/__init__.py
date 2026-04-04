@@ -1,3 +1,5 @@
+"""为客服相关能力提供包级导出。"""
+
 from app.skills.customer.after_sale_intake_skill import AfterSaleIntakeSkill
 from app.skills.customer.customer_reply_draft_skill import CustomerReplyDraftSkill
 from app.skills.customer.order_status_explain_skill import OrderStatusExplainSkill

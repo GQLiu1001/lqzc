@@ -1,3 +1,5 @@
+"""提供与LQZC工具相关的实现。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -29,12 +31,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class ToolExecution:
+    """一次工具调用的标准化结果。
+
+    不同工具原始返回值可能差异很大，所以这里统一包装成：
+    - 调了哪个工具
+    - 状态是什么
+    - 入参是什么
+    - 返回结果是什么
+    """
     tool_name: str
     status: str
     arguments: dict[str, Any]
     result: Any
 
     def as_dict(self) -> dict[str, Any]:
+        """处理ASDICT相关逻辑，并返回当前步骤需要的结果。"""
         return {
             "tool_name": self.tool_name,
             "status": self.status,
@@ -44,10 +55,21 @@ class ToolExecution:
 
 
 class LQZCBusinessTools:
+    """对 LQZC 业务系统工具的统一封装层。
+
+    可以把它理解成“AI 和业务系统之间的适配器”：
+    - 上层工作流不直接写 HTTP/MCP 细节
+    - 统一由这里负责查订单、查库存、组装审批草案、执行审批后的动作
+    """
     def __init__(self) -> None:
+        """初始化LQZCbusiness工具，把运行时依赖和基础状态准备好。"""
         self.mcp_client = LQZCMcpClient(settings.mcp_server_url)
 
     async def get_order_detail(self, order_no: str) -> dict[str, Any]:
+        """查询订单详情。
+
+        这是典型的“实时数据查询”工具，适合回答订单状态、发货情况等问题。
+        """
         started_at = time.perf_counter()
         if not settings.lqzc_customer_token:
             elapsed = time.perf_counter() - started_at
@@ -86,10 +108,15 @@ class LQZCBusinessTools:
             raise
 
     async def get_inventory_by_model(self, model: str) -> dict[str, Any]:
+        """按型号查询库存。
+
+        这里走的是 MCP 工具，而不是直接请求业务 HTTP 接口。
+        """
         data = await self.mcp_client.call_tool("getInventoryByModel", {"model": model.upper()})
         return {"code": 200, "message": "success", "data": data}
 
     async def search_inventory(self, current: int = 1, size: int = 10, category: str | None = None, surface: str | None = None) -> dict[str, Any]:
+        """搜索search库存相关信息，并返回匹配结果。"""
         payload = {"current": current, "size": size}
         if category:
             payload["category"] = category
@@ -105,6 +132,11 @@ class LQZCBusinessTools:
         planned_action: dict[str, Any],
         idempotency_key: str,
     ) -> dict[str, Any]:
+        """执行审批通过后的计划动作。
+
+        之前高风险工具并不会立刻改业务数据，而是先返回 `planned_action`。
+        审批通过后，系统再走这里，真正把动作落到业务系统。
+        """
         if source_tool == "submit_refund_for_approval":
             return self._execute_refund_action_sync(planned_action=planned_action, idempotency_key=idempotency_key)
         if source_tool == "submit_inventory_adjustment_for_approval":
@@ -119,6 +151,7 @@ class LQZCBusinessTools:
         }
 
     def _execute_refund_action_sync(self, *, planned_action: dict[str, Any], idempotency_key: str) -> dict[str, Any]:
+        """作为内部辅助步骤，完成execute退款动作SYNC相关处理。"""
         endpoint = str(planned_action.get("endpoint") or "").strip()
         if not endpoint:
             return {"code": 422, "message": "missing endpoint in planned_action", "data": None}
@@ -139,6 +172,7 @@ class LQZCBusinessTools:
         )
 
     def _execute_inventory_adjustment_sync(self, *, planned_action: dict[str, Any], idempotency_key: str) -> dict[str, Any]:
+        """作为内部辅助步骤，完成execute库存adjustmentSYNC相关处理。"""
         endpoint = str(planned_action.get("endpoint") or "").strip()
         if not endpoint:
             return {"code": 422, "message": "missing endpoint in planned_action", "data": None}
@@ -170,6 +204,7 @@ class LQZCBusinessTools:
         headers: dict[str, str],
         tool_name: str,
     ) -> dict[str, Any]:
+        """作为内部辅助步骤，完成requestLQZCAPISYNC相关处理。"""
         started_at = time.perf_counter()
         url = endpoint if endpoint.startswith("http") else f"{settings.lqzc_base_url.rstrip('/')}/{endpoint.lstrip('/')}"
         try:
@@ -216,11 +251,19 @@ class LQZCBusinessTools:
         message: str,
         tool_hints: tuple[str, ...] = (),
     ) -> list[dict[str, Any]]:
+        """根据 skill 选择并执行对应工具。
+
+        这一层非常关键，因为它决定了：
+        - 哪些 skill 允许调哪些工具
+        - 没显式指定工具时，如何根据消息内容自动猜一个工具
+        """
         logger.info(
             "tool.dispatch.start skill=%s tool_hints=%s",
             skill_name,
             ",".join(tool_hints) if tool_hints else "",
         )
+        # 先得到一个“待执行工具队列”。
+        # 来源优先级：skill 显式配置 > 根据消息自动推断。
         hint_queue = self._build_hint_queue(skill_name=skill_name, message=message, tool_hints=tool_hints)
 
         results: list[ToolExecution] = []
@@ -243,6 +286,14 @@ class LQZCBusinessTools:
         return [item.as_dict() for item in results]
 
     def _build_hint_queue(self, *, skill_name: str, message: str, tool_hints: tuple[str, ...]) -> list[str]:
+        """生成工具调用队列。
+
+        设计思路：
+        - 如果 skill 已经明确声明要用哪些工具，就按声明来。
+        - 如果没声明，再从用户消息里抽型号、订单号、关键词做启发式判断。
+
+        这样比“让模型自由决定调用哪个工具”更可控。
+        """
         ordered_hints: list[str] = []
         seen: set[str] = set()
         for raw in tool_hints:
@@ -257,6 +308,7 @@ class LQZCBusinessTools:
 
         lowered = message.lower()
         auto_hints: list[str] = []
+        # 从自然语言里尽量抽出结构化信息，供工具调用使用。
         model = self._extract_model(message)
         order_no = self._extract_order_no(message)
         if model is not None or any(token in lowered for token in _INVENTORY_HINTS):
@@ -271,6 +323,7 @@ class LQZCBusinessTools:
         return auto_hints
 
     async def _execute_hint(self, *, hint: str, message: str) -> ToolExecution:
+        """把工具名映射到真正的执行函数。"""
         handlers = {
             "get_order_detail": self._run_get_order_detail,
             "get_inventory_by_model": self._run_get_inventory_by_model,
@@ -294,6 +347,7 @@ class LQZCBusinessTools:
         return await handler(message)
 
     async def _run_get_order_detail(self, message: str) -> ToolExecution:
+        """作为内部辅助步骤，完成RUNGET订单detail相关处理。"""
         order_no = self._extract_order_no(message)
         args = {"message": message, "order_no": order_no}
         if order_no is None:
@@ -319,6 +373,7 @@ class LQZCBusinessTools:
             )
 
     async def _run_get_inventory_by_model(self, message: str) -> ToolExecution:
+        """作为内部辅助步骤，完成RUNGET库存BY模型相关处理。"""
         model = self._extract_model(message)
         args = {"message": message, "model": model}
         if model is None:
@@ -340,6 +395,7 @@ class LQZCBusinessTools:
             )
 
     async def _run_search_inventory(self, message: str) -> ToolExecution:
+        """作为内部辅助步骤，完成RUNsearch库存相关处理。"""
         args = {"message": message, "current": 1, "size": 10}
         try:
             data = await self.search_inventory(current=1, size=10)
@@ -353,6 +409,11 @@ class LQZCBusinessTools:
             )
 
     async def _run_create_after_sale_ticket(self, message: str) -> ToolExecution:
+        """创建售后工单草稿。
+
+        当前实现还是“草稿模式”，因为后端正式售后接口还不可用，
+        所以这里只先生成一个可追踪的草稿结果。
+        """
         started_at = time.perf_counter()
         order_no = self._extract_order_no(message)
         args = {"message": message, "order_no": order_no}
@@ -392,6 +453,11 @@ class LQZCBusinessTools:
         return ToolExecution("create_after_sale_ticket", status, args, result)
 
     async def _run_submit_refund_for_approval(self, message: str) -> ToolExecution:
+        """生成退款审批草案，而不是直接退款。
+
+        这是本项目里很典型的“AI 可以建议，但不能直接执行高风险动作”的设计。
+        返回值里的 `planned_action` 会在审批通过后再真正执行。
+        """
         started_at = time.perf_counter()
         order_no = self._extract_order_no(message)
         args = {"message": message, "order_no": order_no}
@@ -434,6 +500,14 @@ class LQZCBusinessTools:
         return ToolExecution("submit_refund_for_approval", status, args, result)
 
     async def _run_submit_inventory_adjustment_for_approval(self, message: str) -> ToolExecution:
+        """生成库存调整审批草案。
+
+        步骤是：
+        1. 从用户话里抽型号和调整数量
+        2. 尝试查询当前库存快照
+        3. 计算调整后的预计库存
+        4. 生成 planned_action，等待审批后执行
+        """
         started_at = time.perf_counter()
         model = self._extract_model(message)
         quantity_delta = self._extract_adjustment_delta(message)
@@ -531,6 +605,7 @@ class LQZCBusinessTools:
 
     @staticmethod
     def _extract_model(message: str) -> str | None:
+        """作为内部辅助步骤，完成extract模型相关处理。"""
         match = _MODEL_TOKEN.search(message)
         if match is None:
             return None
@@ -538,6 +613,7 @@ class LQZCBusinessTools:
 
     @staticmethod
     def _extract_order_no(message: str) -> str | None:
+        """作为内部辅助步骤，完成extract订单NO相关处理。"""
         match = _ORDER_TOKEN.search(message)
         if match is None:
             return None
@@ -545,6 +621,7 @@ class LQZCBusinessTools:
 
     @staticmethod
     def _extract_adjustment_delta(message: str) -> int | None:
+        """作为内部辅助步骤，完成extractadjustmentdelta相关处理。"""
         match = _ADJUSTMENT_QUANTITY.search(message)
         if match is None:
             return None

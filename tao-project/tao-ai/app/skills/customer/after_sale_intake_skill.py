@@ -1,9 +1,12 @@
+"""提供与售后售后受理技能相关的实现。"""
+
 from __future__ import annotations
 
 from app.skills.base import BaseSkill, SkillDefinition
 
 
 class AfterSaleIntakeSkill(BaseSkill):
+    """定义售后售后受理技能，用于判断当前用户问题是否适合走这项业务技能。"""
     definition = SkillDefinition(
         name="after_sale_intake_skill",
         domain="customer_service",

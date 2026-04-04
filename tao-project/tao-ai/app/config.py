@@ -20,6 +20,17 @@ load_dotenv(override=False)
 
 @dataclass(slots=True)
 class Settings:
+    """集中管理项目运行配置。
+
+    这个类相当于项目的“总配置表”：
+    所有环境变量最终都会被整理到这里，后面各层代码只依赖 `settings`，
+    而不是到处直接 `os.getenv(...)`。
+
+    这样做的好处是：
+    - 配置来源统一
+    - 默认值集中
+    - 更容易知道一个功能依赖哪些开关
+    """
     app_name: str = field(default_factory=lambda: os.getenv("APP_NAME", "agent-runtime"))
     app_env: str = field(default_factory=lambda: os.getenv("APP_ENV", "dev"))
     app_port: int = field(default_factory=lambda: int(os.getenv("APP_PORT", "8000")))
@@ -76,12 +87,18 @@ class Settings:
     skills_dir: Path = field(init=False)
 
     def __post_init__(self) -> None:
+        """补充由路径推导出来的配置。
+
+        前面的字段大多来自环境变量；
+        这里则根据当前文件位置，自动推导出项目根目录、prompt 目录、skill 目录。
+        """
         self.project_root = Path(__file__).resolve().parents[1]
         self.prompts_dir = self.project_root / "prompts"
         self.skills_dir = self.project_root / "skills"
 
     @property
     def mysql_dsn(self) -> dict[str, object]:
+        """把 MySQL 连接配置整理成可直接传给客户端的参数字典。"""
         return {
             "host": self.mysql_host,
             "port": self.mysql_port,

@@ -1,3 +1,5 @@
+"""提供与domainsubworkflow相关的实现。"""
+
 from __future__ import annotations
 
 import json
@@ -22,6 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 class DomainWorkflowState(TypedDict, total=False):
+    """业务子工作流共享的状态对象。
+
+    客服和仓储虽然是两个不同子图，但它们执行步骤很像：
+    检索 -> 调工具 -> 过风控 -> 生成回答。
+    所以这里抽出一份通用状态结构，避免两套流程各写一遍。
+    """
     session_id: str
     user_id: str | None
     tenant_id: str | None
@@ -52,6 +60,15 @@ AnswerGenerator = Callable[[str, str, str, str], Awaitable[str]]
 
 
 class DomainSubWorkflow:
+    """业务域子工作流的通用骨架。
+
+    这个类是个“模板”：
+    - 客服子流程复用它
+    - 仓储子流程也复用它
+
+    真正不同的部分只有“最后由哪个 Agent 负责生成答案”，
+    所以用 `answer_generator` 作为可注入函数传进来。
+    """
     def __init__(
         self,
         *,
@@ -62,6 +79,7 @@ class DomainSubWorkflow:
         approval_tool: ApprovalTool,
         answer_generator: AnswerGenerator,
     ) -> None:
+        """初始化domainSUB工作流，把运行时依赖和基础状态准备好。"""
         self.workflow_name = workflow_name
         self.memory = memory
         self.retriever_tool = retriever_tool
@@ -71,6 +89,14 @@ class DomainSubWorkflow:
         self.graph = self._build_graph()
 
     def _build_graph(self):
+        """构建子工作流状态图。
+
+        这条链路是整个 AI 回答生成的核心主干：
+        1. `retrieve_context` 去知识库找证据。
+        2. `invoke_tools` 去业务系统查订单、查库存或生成审批草案。
+        3. `risk_gate` 判断是否需要人工审批。
+        4. 不需要审批就 `draft_answer`，需要就 `wait_approval`。
+        """
         graph = StateGraph(DomainWorkflowState)
         graph.add_node("retrieve_context", self._retrieve_context)
         graph.add_node("invoke_tools", self._invoke_tools)
@@ -94,6 +120,12 @@ class DomainSubWorkflow:
         return graph.compile(checkpointer=MemorySaver())
 
     async def run(self, state: DomainWorkflowState) -> DomainWorkflowState:
+        """执行子工作流。
+
+        这里调用的是 LangGraph 的 `ainvoke`。
+        `thread_id=task_id` 的意义是：让这条工作流执行和当前 task 绑定，
+        便于后续做 checkpoint、恢复和追踪。
+        """
         task_id = str(state["task_id"])
         graph_state = await self.graph.ainvoke(
             state,
@@ -102,6 +134,12 @@ class DomainSubWorkflow:
         return graph_state
 
     async def _retrieve_context(self, state: DomainWorkflowState) -> DomainWorkflowState:
+        """执行 RAG 检索，先给模型补业务证据。
+
+        大模型本身不一定知道你们公司的订单规则、库存 SOP、售后政策，
+        所以这里会先去向量库里查相关资料，再把命中的文本证据放进状态里。
+        后面生成答案时，这些证据会被拼进 prompt。
+        """
         task_id = state["task_id"]
         node_name = "retrieve_context"
         started_at = time.perf_counter()
@@ -118,6 +156,7 @@ class DomainSubWorkflow:
         )
         self.memory.task.update(task_id=task_id, status=TaskStatus.RETRIEVING)
         try:
+            # `collection_name` 表示命中的知识库集合，`hits` 是检索到的片段列表。
             collection_name, hits = self.retriever_tool.retrieve(
                 query=state["message"],
                 domain=str(retrieval_domain),
@@ -151,6 +190,7 @@ class DomainSubWorkflow:
                 "status": TaskStatus.RETRIEVING.value,
                 "collection_name": collection_name,
                 "retrieval_hits": hits,
+                # 同一份检索结果会被整理成更标准的 evidence 结构，供 API 直接返回前端。
                 "evidence": [
                     {
                         "source": str(item.get("source", collection_name)),
@@ -170,6 +210,15 @@ class DomainSubWorkflow:
             )
 
     async def _invoke_tools(self, state: DomainWorkflowState) -> DomainWorkflowState:
+        """根据 skill 调用业务工具。
+
+        检索解决的是“知识问答”，工具解决的是“实时业务数据”。
+        比如：
+        - 检索能回答退款规则是什么
+        - 工具能回答某个订单当前状态是什么
+
+        这一步会把工具执行结果都记进 `tool_trace`，方便最终拼上下文和排障。
+        """
         task_id = state["task_id"]
         node_name = "invoke_tools"
         started_at = time.perf_counter()
@@ -187,6 +236,8 @@ class DomainSubWorkflow:
         trace = list(state.get("tool_trace", []))
         try:
             try:
+                # 这里不是让 LLM 自由调用工具，而是先由 skill 决定允许用哪些工具。
+                # 这样更稳、更容易控风险，也更适合业务系统。
                 tool_results = await self.business_tools.run_by_skill(
                     skill_name=state.get("current_skill", ""),
                     message=state["message"],
@@ -235,6 +286,7 @@ class DomainSubWorkflow:
                 success = True
                 return {**state, "status": TaskStatus.TOOL_RUNNING.value, "tool_trace": trace}
 
+            # 统一把不同格式的工具结果规范成 trace 结构。
             for item in tool_results:
                 if isinstance(item, tuple) and len(item) == 2:
                     tool_name = str(item[0])
@@ -310,6 +362,13 @@ class DomainSubWorkflow:
             )
 
     async def _risk_gate(self, state: DomainWorkflowState) -> DomainWorkflowState:
+        """风控闸门，决定这次请求是继续还是挂起等待审批。
+
+        关键思想：
+        - “查询类”请求通常可以直接继续。
+        - “执行类”或高风险请求不应该让 AI 直接落库或改业务数据。
+        - 所以先生成审批单，再等待人工确认。
+        """
         task_id = state["task_id"]
         node_name = "risk_gate"
         started_at = time.perf_counter()
@@ -323,6 +382,7 @@ class DomainSubWorkflow:
                     agent=str(state.get("current_agent") or "unknown"),
                     skill=str(state.get("current_skill") or "unknown"),
                 )
+                # 这里先登记一个待审批动作，真正执行危险动作要等审批通过后再做。
                 self.approval_tool.request(task_id=task_id, approval_action="approve")
                 self.memory.task.update(task_id=task_id, status=TaskStatus.WAITING_APPROVAL)
                 logger.info(
@@ -352,11 +412,13 @@ class DomainSubWorkflow:
             )
 
     def _risk_branch(self, state: DomainWorkflowState) -> str:
+        """根据当前状态决定从 risk_gate 走向哪个分支。"""
         if state.get("status") == TaskStatus.WAITING_APPROVAL.value:
             return "WAITING_APPROVAL"
         return "CONTINUE"
 
     async def _wait_approval(self, state: DomainWorkflowState) -> DomainWorkflowState:
+        """在需要审批时返回一个明确提示，而不是直接执行业务动作。"""
         task_id = state["task_id"]
         node_name = "wait_approval"
         started_at = time.perf_counter()
@@ -376,6 +438,11 @@ class DomainSubWorkflow:
             )
 
     async def _draft_answer(self, state: DomainWorkflowState) -> DomainWorkflowState:
+        """把检索证据和工具结果拼成上下文，再交给具体 Agent 生成答案。
+
+        这一层本身不关心“你是客服 Agent 还是仓储 Agent”，
+        它只负责把上下文整理好，再调用注入进来的 `answer_generator`。
+        """
         task_id = state["task_id"]
         node_name = "draft_answer"
         started_at = time.perf_counter()
@@ -383,6 +450,7 @@ class DomainSubWorkflow:
         success = False
         retrieval_context = format_retrieval_context(state.get("retrieval_hits", []))
         tool_context = format_tool_context(state.get("tool_trace", []))
+        # 检索上下文 + 工具上下文 = 给大模型看的“事实材料”。
         final_context = "\n".join(part for part in (retrieval_context, tool_context) if part.strip())
         logger.info(
             "subworkflow.draft name=%s task_id=%s skill=%s retrieval_hits=%s tools=%s context_len=%s",

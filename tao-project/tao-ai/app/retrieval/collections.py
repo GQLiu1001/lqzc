@@ -1,9 +1,12 @@
+"""提供与集合相关的实现。"""
+
 from __future__ import annotations
 
 from app.config import settings
 
 
 def collection_for_domain(domain: str) -> str:
+    """处理集合FORdomain相关逻辑，并返回当前步骤需要的结果。"""
     mapping = {
         "customer_service": settings.customer_faq_collection,
         "customer_policy": settings.customer_policy_collection,
@@ -17,6 +20,7 @@ def collection_for_domain(domain: str) -> str:
 
 
 def all_collections() -> list[str]:
+    """处理ALL集合相关逻辑，并返回当前步骤需要的结果。"""
     return [
         settings.customer_faq_collection,
         settings.customer_policy_collection,

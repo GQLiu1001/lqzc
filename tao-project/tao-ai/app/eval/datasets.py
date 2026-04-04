@@ -1,3 +1,5 @@
+"""提供与数据集相关的实现。"""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +12,7 @@ DATASET_DIR = Path(__file__).resolve().parent / "datasets"
 
 
 def list_datasets() -> list[str]:
+    """列出与LIST数据集相关的数据，供后续逻辑继续处理。"""
     if not DATASET_DIR.exists():
         return []
     names = []
@@ -19,6 +22,7 @@ def list_datasets() -> list[str]:
 
 
 def load_dataset(dataset_name: str, *, max_cases: int | None = None) -> list[EvalCase]:
+    """加载LOAD数据集相关内容，供当前流程继续使用。"""
     path = DATASET_DIR / f"{dataset_name}.jsonl"
     if not path.exists():
         raise ValueError(f"Unknown dataset: {dataset_name}")

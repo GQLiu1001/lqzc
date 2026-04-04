@@ -1,3 +1,5 @@
+"""提供与任务相关的实现。"""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -5,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class TaskStatus(str, Enum):
+    """定义任务状态，用于承载当前模块中的核心逻辑。"""
     NEW = "NEW"
     ROUTED = "ROUTED"
     RETRIEVING = "RETRIEVING"
@@ -19,6 +22,7 @@ class TaskStatus(str, Enum):
 
 
 class TaskRecord(BaseModel):
+    """表示任务record，用于承载一条运行时记录。"""
     task_id: str
     session_id: str
     tenant_id: str | None = None

@@ -1,3 +1,5 @@
+"""提供与routes任务相关的实现。"""
+
 from __future__ import annotations
 
 import logging
@@ -16,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_approval_token(*, x_approval_token: str | None, authorization: str | None) -> str:
+    """从多个可能的请求头里提取审批 token。
+
+    兼容两种传法：
+    - 自定义头 `X-Approval-Token`
+    - 标准 `Authorization: Bearer ...`
+    """
     token = (x_approval_token or "").strip()
     if token:
         return token
@@ -29,6 +37,11 @@ def _resolve_approval_token(*, x_approval_token: str | None, authorization: str 
 
 @router.post("/tasks/execute", response_model=ChatResponse)
 async def execute_task(payload: TaskExecuteRequest) -> ChatResponse:
+    """任务执行接口。
+
+    它和 `/chat` 很像，本质上也是跑一遍总控工作流；
+    只是这里的命名更偏“任务执行”而不是“普通聊天”。
+    """
     logger.info("tasks.execute.request session_id=%s message_len=%s", payload.session_id, len(payload.message or ""))
     runtime = get_runtime_container()
     task_id, session_id, output = await runtime.workflow.run_chat(payload)
@@ -42,8 +55,17 @@ def approve_task(
     x_approval_token: str | None = Header(default=None, alias="X-Approval-Token"),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> TaskStatusResponse:
+    """审批高风险任务。
+
+    调用流程通常是：
+    1. 某次聊天触发了 WAITING_APPROVAL
+    2. 审批人调用这个接口
+    3. 工作流把任务标记为通过/拒绝
+    4. 如果通过，还可能继续执行 planned_action
+    """
     expected_token = settings.approval_admin_token.strip()
     if expected_token:
+        # 如果配置了审批口令，就要求审批请求必须携带正确 token。
         provided_token = _resolve_approval_token(
             x_approval_token=x_approval_token,
             authorization=authorization,
@@ -73,6 +95,7 @@ def approve_task(
 
 @router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
 def get_task(task_id: str) -> TaskStatusResponse:
+    """查询单个任务当前状态。"""
     runtime = get_runtime_container()
     task = runtime.workflow.get_task(task_id)
     if task is None:
@@ -84,6 +107,10 @@ def get_task(task_id: str) -> TaskStatusResponse:
 
 @router.get("/sessions/{session_id}", response_model=SessionDetail)
 def get_session(session_id: str) -> SessionDetail:
+    """查询会话历史消息。
+
+    这个接口适合前端做“打开某个 session 时回显历史对话”。
+    """
     runtime = get_runtime_container()
     messages = runtime.workflow.get_session_messages(session_id)
     logger.info("sessions.get.response session_id=%s messages=%s", session_id, len(messages))

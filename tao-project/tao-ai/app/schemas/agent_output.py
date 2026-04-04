@@ -1,3 +1,5 @@
+"""提供与Agentoutput相关的实现。"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -7,6 +9,7 @@ from app.schemas.tool import ToolTrace
 
 
 class AgentOutput(BaseModel):
+    """定义Agentoutput，用于承载当前模块中的核心逻辑。"""
     agent: str
     skill: str
     answer: str

@@ -1,9 +1,12 @@
+"""提供与补货建议技能相关的实现。"""
+
 from __future__ import annotations
 
 from app.skills.base import BaseSkill, SkillDefinition
 
 
 class ReplenishmentSuggestionSkill(BaseSkill):
+    """定义补货建议技能，用于判断当前用户问题是否适合走这项业务技能。"""
     definition = SkillDefinition(
         name="replenishment_suggestion_skill",
         domain="warehouse",

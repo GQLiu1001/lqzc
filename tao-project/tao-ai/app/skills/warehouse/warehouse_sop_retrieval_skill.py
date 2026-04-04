@@ -1,9 +1,12 @@
+"""提供与仓储SOP检索技能相关的实现。"""
+
 from __future__ import annotations
 
 from app.skills.base import BaseSkill, SkillDefinition
 
 
 class WarehouseSopRetrievalSkill(BaseSkill):
+    """定义仓储SOP检索技能，用于判断当前用户问题是否适合走这项业务技能。"""
     definition = SkillDefinition(
         name="warehouse_sop_retrieval_skill",
         domain="warehouse",

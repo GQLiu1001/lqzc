@@ -1,3 +1,5 @@
+"""提供与routes管理相关的实现。"""
+
 from __future__ import annotations
 
 import httpx
@@ -14,6 +16,7 @@ router = APIRouter(tags=["admin"])
 
 @router.get("/health")
 def health() -> dict[str, str]:
+    """处理health相关逻辑，并返回当前步骤需要的结果。"""
     return {
         "status": "ok",
         "app": settings.app_name,
@@ -26,6 +29,7 @@ def health() -> dict[str, str]:
 
 @router.get("/ready")
 async def ready() -> JSONResponse:
+    """处理ready相关逻辑，并返回当前步骤需要的结果。"""
     runtime = get_runtime_container()
 
     mysql_ok, mysql_error = runtime.workflow.memory.mysql.ping()

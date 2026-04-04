@@ -1,9 +1,12 @@
+"""提供与库存异常技能相关的实现。"""
+
 from __future__ import annotations
 
 from app.skills.base import BaseSkill, RegexSignal, SkillDefinition
 
 
 class InventoryExceptionSkill(BaseSkill):
+    """定义库存异常技能，用于判断当前用户问题是否适合走这项业务技能。"""
     definition = SkillDefinition(
         name="inventory_exception_skill",
         domain="warehouse",

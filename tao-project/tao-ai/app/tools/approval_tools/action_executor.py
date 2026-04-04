@@ -1,3 +1,5 @@
+"""提供与动作执行器相关的实现。"""
+
 from __future__ import annotations
 
 import ast
@@ -21,13 +23,28 @@ _APPROVAL_ACTION_TOOLS = {
 
 @dataclass(slots=True)
 class PlannedAction:
+    """从工具轨迹中提取出来的“待执行动作”。
+
+    高风险工具不会立刻改业务数据，而是先把 planned_action 落进 trace。
+    审批通过后，再把这些动作提取出来执行。
+    """
     source_tool: str
     planned_action: dict[str, Any]
     trace_id: int | None = None
 
 
 class ActionExecutor:
+    """审批通过后的动作执行器。
+
+    这个类解决的是：
+    “工具已经给出了 planned_action，审批也通过了，那怎么真正执行？”
+
+    它还顺手处理两个线上非常关键的问题：
+    - 幂等性：避免重复点击审批导致动作重复执行
+    - 审计：把执行结果继续写回 trace 和 action_executions 表
+    """
     def __init__(self, *, mysql_store: MySQLStore, business_tools: LQZCBusinessTools) -> None:
+        """初始化动作执行器，把运行时依赖和基础状态准备好。"""
         self.mysql_store = mysql_store
         self.business_tools = business_tools
 
@@ -39,6 +56,15 @@ class ActionExecutor:
         approver_id: str,
         comment: str | None,
     ) -> dict[str, Any]:
+        """执行某个任务下所有待审批动作。
+
+        核心流程是：
+        1. 从 tool traces 里找出 planned_action
+        2. 为每个动作生成幂等键
+        3. 先登记 action_execution 记录
+        4. 再真正调用业务系统执行
+        5. 最后把执行结果写回数据库
+        """
         traces = self.mysql_store.list_tool_traces(task_id=task_id, limit=200)
         planned_actions = self._extract_planned_actions(traces)
         if not planned_actions:
@@ -54,6 +80,7 @@ class ActionExecutor:
         skipped_count = 0
 
         for item in planned_actions:
+            # 先把动作标准化，避免相同动作因为字段顺序不同而产生不同幂等键。
             canonical_action = self._normalize_action_payload(item.planned_action)
             idempotency_key = self._build_idempotency_key(
                 task_id=task_id,
@@ -73,6 +100,7 @@ class ActionExecutor:
             execution_id = int(action_row["id"])
             existing_status = str(action_row.get("status") or "").upper()
 
+            # 如果同一个动作已经成功执行过，就直接跳过，防止重复扣库存、重复退款。
             if existing_status == "SUCCESS":
                 skipped_count += 1
                 duplicate_result = {
@@ -111,6 +139,7 @@ class ActionExecutor:
                 response=None,
                 error_message=None,
             )
+            # 真正执行高风险动作的地方在这里。
             result = self.business_tools.execute_planned_action_sync(
                 source_tool=item.source_tool,
                 planned_action=canonical_action,
@@ -157,6 +186,7 @@ class ActionExecutor:
                 status=status,
             )
 
+        # 汇总整批动作的最终状态，供上层决定任务结果。
         if failed_count > 0:
             final_status = "FAILED"
         elif success_count > 0:
@@ -179,11 +209,13 @@ class ActionExecutor:
         }
 
     def _extract_planned_actions(self, traces: list[dict[str, Any]]) -> list[PlannedAction]:
+        """从历史工具轨迹中提取所有可执行的 planned_action。"""
         actions: list[PlannedAction] = []
         for row in traces:
             tool_name = str(row.get("tool_name") or "")
             if tool_name not in _APPROVAL_ACTION_TOOLS:
                 continue
+            # trace 里的结果可能在 `result_json`，也可能只剩 preview 文本，所以要容错解析。
             payload = self._parse_result_payload(
                 raw_result=row.get("result"),
                 raw_preview=row.get("result_preview"),
@@ -207,6 +239,14 @@ class ActionExecutor:
 
     @staticmethod
     def _parse_result_payload(*, raw_result: Any, raw_preview: Any) -> dict[str, Any] | None:
+        """尽量把 trace 里的结果解析回 dict。
+
+        这里的容错顺序是：
+        1. 如果本来就是 dict，直接用
+        2. 尝试按 JSON 字符串解析
+        3. 再从 preview 文本里恢复
+        4. 最后再试 `ast.literal_eval`
+        """
         if isinstance(raw_result, dict):
             return raw_result
         if isinstance(raw_result, str):
@@ -241,6 +281,10 @@ class ActionExecutor:
 
     @staticmethod
     def _normalize_action_payload(planned_action: dict[str, Any]) -> dict[str, Any]:
+        """把 planned_action 归一化成稳定结构。
+
+        这样后面做幂等键时，不会因为字段顺序、大小写等差异导致误判。
+        """
         method = str(planned_action.get("method") or "POST").upper()
         endpoint = str(planned_action.get("endpoint") or "").strip()
         params = planned_action.get("params") if isinstance(planned_action.get("params"), dict) else None
@@ -259,6 +303,7 @@ class ActionExecutor:
         source_tool: str,
         planned_action: dict[str, Any],
     ) -> str:
+        """基于 task_id、来源工具、动作内容生成幂等键。"""
         payload = json.dumps(planned_action, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         source = f"{task_id}|{source_tool}|{payload}"
         digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
@@ -266,6 +311,7 @@ class ActionExecutor:
 
     @staticmethod
     def _safe_int(value: Any, *, default: int) -> int:
+        """把值安全转成整数，失败时回退默认值。"""
         try:
             return int(value)
         except Exception:

@@ -1,9 +1,12 @@
+"""提供与库存冻结释放技能相关的实现。"""
+
 from __future__ import annotations
 
 from app.skills.base import BaseSkill, SkillDefinition
 
 
 class StockHoldReleaseSkill(BaseSkill):
+    """定义库存冻结释放技能，用于判断当前用户问题是否适合走这项业务技能。"""
     definition = SkillDefinition(
         name="stock_hold_release_skill",
         domain="warehouse",

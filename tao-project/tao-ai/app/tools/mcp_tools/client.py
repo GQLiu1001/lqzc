@@ -1,3 +1,5 @@
+"""提供与客户端相关的实现。"""
+
 from __future__ import annotations
 
 import json
@@ -17,14 +19,18 @@ logger = logging.getLogger(__name__)
 
 
 class MpcClientError(RuntimeError):
+    """定义MPC客户端error，用于承载当前模块中的核心逻辑。"""
     pass
 
 
 class LQZCMcpClient:
+    """定义LQZCMCP客户端，用于承载当前模块中的核心逻辑。"""
     def __init__(self, server_url: str) -> None:
+        """初始化LQZCMCP客户端，把运行时依赖和基础状态准备好。"""
         self.server_url = server_url.rstrip("/")
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None = None) -> Any:
+        """处理CALL工具相关逻辑，并返回当前步骤需要的结果。"""
         args = arguments or {}
         started_at = time.perf_counter()
         logger.info("mcp.call.start tool=%s server=%s", tool_name, self.server_url)
@@ -58,6 +64,7 @@ class LQZCMcpClient:
 
     @staticmethod
     async def _initialize_session(session: ClientSession) -> None:
+        """作为内部辅助步骤，完成initialize会话相关处理。"""
         configured_protocol = (settings.mcp_protocol_version or "").strip()
         protocol_version = configured_protocol if configured_protocol in SUPPORTED_PROTOCOL_VERSIONS else types.LATEST_PROTOCOL_VERSION
 
@@ -88,6 +95,7 @@ class LQZCMcpClient:
 
     @staticmethod
     def _normalize_result(result: types.CallToolResult) -> Any:
+        """作为内部辅助步骤，完成normalizeresult相关处理。"""
         if result.structuredContent is not None:
             return result.structuredContent
         texts: list[str] = []

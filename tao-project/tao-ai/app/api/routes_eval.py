@@ -1,3 +1,5 @@
+"""提供与routes评测相关的实现。"""
+
 from __future__ import annotations
 
 import logging
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_eval_enabled() -> None:
+    """确保当前环境允许使用评测接口。"""
     if settings.enable_eval:
         return
     raise HTTPException(status_code=503, detail="Eval is disabled by config")
@@ -23,6 +26,10 @@ def _ensure_eval_enabled() -> None:
 
 @router.post("/eval/run", response_model=EvalRunResponse)
 async def run_eval(payload: EvalRunRequest) -> EvalRunResponse:
+    """启动一轮评测并返回结果。
+
+    评测会按数据集逐条回放问题，最后产出汇总指标和 case 结果。
+    """
     _ensure_eval_enabled()
     runtime = get_runtime_container()
     try:
@@ -47,6 +54,7 @@ async def run_eval(payload: EvalRunRequest) -> EvalRunResponse:
 
 @router.get("/eval/datasets", response_model=list[str])
 def get_eval_datasets() -> list[str]:
+    """列出当前可用评测数据集。"""
     _ensure_eval_enabled()
     datasets = list_datasets()
     logger.info("eval.api.datasets count=%s", len(datasets))
@@ -55,6 +63,7 @@ def get_eval_datasets() -> list[str]:
 
 @router.get("/eval/runs", response_model=list[EvalRunSummary])
 def get_eval_runs(limit: int = 20) -> list[EvalRunSummary]:
+    """列出历史评测运行记录。"""
     _ensure_eval_enabled()
     runtime = get_runtime_container()
     runs = runtime.eval_runner.list_runs(limit=limit)
@@ -64,6 +73,7 @@ def get_eval_runs(limit: int = 20) -> list[EvalRunSummary]:
 
 @router.get("/eval/runs/{run_id}", response_model=EvalRunDetail)
 def get_eval_run(run_id: str) -> EvalRunDetail:
+    """查看单次评测的详细结果。"""
     _ensure_eval_enabled()
     runtime = get_runtime_container()
     detail = runtime.eval_runner.get_run(run_id)
