@@ -1,5 +1,9 @@
 package com.lqzc.controller;
 
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
+import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lqzc.common.Result;
 import com.lqzc.common.domain.CouponTemplate;
@@ -7,6 +11,7 @@ import com.lqzc.common.domain.CustomerCoupon;
 import com.lqzc.common.exception.LianqingException;
 import com.lqzc.common.resp.CouponMarketResp;
 import com.lqzc.common.resp.MyCouponResp;
+import com.lqzc.config.CouponSentinelConfig;
 import com.lqzc.service.CouponTemplateService;
 import com.lqzc.service.CustomerCouponService;
 import com.lqzc.common.message.CouponReceiveMessage;
@@ -123,6 +128,12 @@ public class MallCouponController {
 
     @Operation(summary = "领取优惠券", description = "抢券接口，使用Redis+Lua防止超发")
     @PostMapping("/receive/{templateId}")
+    @SentinelResource(
+            value = CouponSentinelConfig.COUPON_RECEIVE_RESOURCE,
+            blockHandler = "handleReceiveBlock",
+            fallback = "handleReceiveFallback",
+            exceptionsToIgnore = {LianqingException.class}
+    )
     public Result<Void> receive(@Parameter(description = "模板ID") @PathVariable Long templateId) {
         Long customerId = UserContextHolder.getCustomerId();
         
@@ -279,6 +290,33 @@ public class MallCouponController {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    /**
+     * Sentinel限流/熔断处理
+     */
+    public Result<Void> handleReceiveBlock(Long templateId, BlockException e) {
+        Long customerId = UserContextHolder.getCustomerId();
+        log.warn("抢券请求被Sentinel拦截: templateId={}, customerId={}, blockType={}",
+                templateId, customerId, e.getClass().getSimpleName());
+
+        if (e instanceof DegradeException) {
+            return Result.fail(503, "抢券通道暂时繁忙，请稍后再试", null);
+        }
+        if (e instanceof ParamFlowException) {
+            return Result.fail(429, "当前优惠券太火爆了，请稍后再试", null);
+        }
+        return Result.fail(429, "请求过于频繁，请稍后再试", null);
+    }
+
+    /**
+     * Sentinel异常降级处理
+     */
+    public Result<Void> handleReceiveFallback(Long templateId, Throwable throwable) {
+        Long customerId = UserContextHolder.getCustomerId();
+        log.error("抢券接口触发异常降级: templateId={}, customerId={}, error={}",
+                templateId, customerId, throwable.getMessage(), throwable);
+        return Result.fail(500, "系统繁忙，请稍后重试", null);
     }
 
 }

@@ -381,14 +381,14 @@
 
 ---
 
-### **4.4. 智能客服 (AI Chat)**
+### **4.4. MCP 工具服务 (MCP)**
 
-`基础路径: /mall/ai`
+`基础路径: /mcp`
 
-#### **4.4.1. AI流式聊天**
-- **Endpoint**: `GET /mall/ai/stream-chat`
-- **请求参数**: `message`, `sessionId`
-- **响应**: `Content-Type: text/event-stream` (Server-Sent Events)
+#### **4.4.1. MCP 入口**
+- **Endpoint**: `POST /mcp`（Streamable HTTP）
+- **说明**: Java 端仅提供 MCP 工具能力，旧 `GET /mall/ai/stream-chat` 已下线并归档到 `legacy/ai-disabled`
+- **当前工具**: `getInventoryByModel`, `getTopSales`
 
 ---
 

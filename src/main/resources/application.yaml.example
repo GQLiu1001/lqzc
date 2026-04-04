@@ -53,14 +53,14 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
   
-  # 阿里云通义千问AI配置
+  # Java 端已切换为仅提供 MCP 工具，LLM/Agent 配置迁移到 Python 端
   ai:
-    dashscope:
-      api-key: your_dashscope_api_key  # 阿里云DashScope API密钥
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      chat:
-        options:
-          model: qwen-max-latest
+    mcp:
+      server:
+        enabled: true
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
 
 # MyBatis Plus配置
 mybatis-plus:
@@ -101,6 +101,19 @@ jwt:
 # 服务器配置
 server:
   port: 8001  # 应用端口
+
+# 抢券接口 Sentinel 配置
+lqzc:
+  coupon:
+    sentinel:
+      receive-qps: 600
+      template-hotspot-qps: 300
+      slow-request-ms: 200
+      slow-request-ratio-threshold: 0.5
+      exception-ratio-threshold: 0.4
+      min-request-amount: 20
+      stat-interval-ms: 10000
+      circuit-break-seconds: 10
 
 # 应用配置
 spring:

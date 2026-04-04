@@ -1,0 +1,180 @@
+package com.lqzc.controller;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lqzc.common.Result;
+import com.lqzc.common.constant.RedisConstant;
+import com.lqzc.common.domain.InventoryItem;
+import com.lqzc.common.records.MallItemsListRecord;
+import com.lqzc.common.resp.SalesResp;
+import com.lqzc.service.InventoryItemService;
+import jakarta.annotation.Resource;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+@RestController
+@RequestMapping("/mall/ai/tools")
+public class AiToolController {
+
+    @Resource
+    private InventoryItemService inventoryItemService;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    @GetMapping("/top-sales")
+    public Result<List<SalesResp>> topSales() {
+        Set<ZSetOperations.TypedTuple<String>> topItems = stringRedisTemplate.opsForZSet()
+                .reverseRangeWithScores(RedisConstant.HOT_SALES, 0, 4);
+
+        if (topItems == null || topItems.isEmpty()) {
+            return Result.success(new ArrayList<>());
+        }
+
+        List<SalesResp> responses = new ArrayList<>();
+        topItems.forEach(topItem -> {
+            SalesResp response = new SalesResp();
+            response.setModel(topItem.getValue());
+            response.setAmount(topItem.getScore() != null ? topItem.getScore().intValue() : 0);
+            responses.add(response);
+        });
+
+        return Result.success(responses);
+    }
+
+    @GetMapping("/inventory/by-model")
+    public Result<InventoryLookupResp> inventoryByModel(@RequestParam("model") String model) {
+        InventoryItem item = inventoryItemService.query()
+                .eq("model", model)
+                .one();
+
+        if (item == null) {
+            return Result.fail(404, "未找到对应库存型号", null);
+        }
+
+        return Result.success(InventoryLookupResp.from(item));
+    }
+
+    @GetMapping("/inventory/search")
+    public Result<InventorySearchResp> inventorySearch(
+            @RequestParam(value = "current", defaultValue = "1") Integer current,
+            @RequestParam(value = "size", defaultValue = "10") Integer size,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "surface", required = false) String surface
+    ) {
+        IPage<MallItemsListRecord> page = new Page<>(current, size);
+        IPage<MallItemsListRecord> records = inventoryItemService.getItemsList(page, category, surface);
+
+        List<InventorySummaryResp> items = records.getRecords().stream()
+                .map(InventorySummaryResp::from)
+                .toList();
+
+        return Result.success(new InventorySearchResp(
+                items,
+                records.getTotal(),
+                records.getCurrent(),
+                records.getSize()
+        ));
+    }
+
+    private static String categoryLabel(Integer category) {
+        return switch (category) {
+            case 1 -> "墙砖";
+            case 2 -> "地砖";
+            case 3 -> "胶";
+            case 4 -> "洁具";
+            default -> "未知";
+        };
+    }
+
+    private static String surfaceLabel(Integer surface) {
+        return switch (surface) {
+            case 1 -> "抛光";
+            case 2 -> "哑光";
+            case 3 -> "釉面";
+            case 4 -> "通体大理石";
+            case 5 -> "微晶石";
+            case 6 -> "岩板";
+            default -> "未知";
+        };
+    }
+
+    public record InventoryLookupResp(
+            Long id,
+            String model,
+            String manufacturer,
+            String specification,
+            Integer category,
+            String categoryLabel,
+            Integer surface,
+            String surfaceLabel,
+            Integer warehouseCode,
+            String warehouseLabel,
+            Integer totalAmount,
+            Integer unitPerBox,
+            BigDecimal sellingPrice,
+            String remark
+    ) {
+        static InventoryLookupResp from(InventoryItem item) {
+            return new InventoryLookupResp(
+                    item.getId(),
+                    item.getModel(),
+                    item.getManufacturer(),
+                    item.getSpecification(),
+                    item.getCategory(),
+                    AiToolController.categoryLabel(item.getCategory()),
+                    item.getSurface(),
+                    AiToolController.surfaceLabel(item.getSurface()),
+                    item.getWarehouseNum(),
+                    "仓库" + item.getWarehouseNum(),
+                    item.getTotalAmount(),
+                    item.getUnitPerBox(),
+                    item.getSellingPrice(),
+                    item.getRemark()
+            );
+        }
+    }
+
+    public record InventorySummaryResp(
+            String model,
+            String manufacturer,
+            String specification,
+            Integer category,
+            String categoryLabel,
+            Integer surface,
+            String surfaceLabel,
+            Integer totalAmount,
+            BigDecimal sellingPrice
+    ) {
+        static InventorySummaryResp from(MallItemsListRecord item) {
+            return new InventorySummaryResp(
+                    item.getModel(),
+                    item.getManufacturer(),
+                    item.getSpecification(),
+                    item.getCategory(),
+                    AiToolController.categoryLabel(item.getCategory()),
+                    item.getSurface(),
+                    AiToolController.surfaceLabel(item.getSurface()),
+                    item.getTotalAmount(),
+                    item.getSellingPrice()
+            );
+        }
+    }
+
+    public record InventorySearchResp(
+            List<InventorySummaryResp> records,
+            long total,
+            long current,
+            long size
+    ) {
+    }
+}
