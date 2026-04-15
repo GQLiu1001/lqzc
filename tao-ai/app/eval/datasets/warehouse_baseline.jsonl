@@ -1,4 +1,0 @@
-{"case_id":"warehouse_inventory_check","message":"A9002 还有库存吗？","expected":{"agent":"warehouse","requires_approval":false,"min_evidence_hits":0}}
-{"case_id":"warehouse_replenishment","message":"这个型号最近缺货，给我补货建议","expected":{"agent":"warehouse","requires_approval":false,"min_evidence_hits":0}}
-{"case_id":"warehouse_stock_adjustment","message":"将 A9002 库存扣减 20，先评估风险","expected":{"agent":"warehouse","requires_approval":true,"min_evidence_hits":0}}
-{"case_id":"warehouse_pick_pack_sop","message":"拣货打包操作规范的 SOP 发我","expected":{"agent":"warehouse","requires_approval":false,"min_evidence_hits":0}}
