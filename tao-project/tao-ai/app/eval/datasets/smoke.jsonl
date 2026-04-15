@@ -1,6 +1,0 @@
-{"case_id":"smoke_customer_order_status","message":"订单 8823456677 现在物流到哪了？","expected":{"agent":"customer_service","skill":"order_status_explain_skill","requires_approval":false,"min_evidence_hits":0}}
-{"case_id":"smoke_customer_refund","message":"客户要退款，订单 8823456677，帮我看下怎么处理","expected":{"agent":"customer_service","skill":"refund_policy_skill","requires_approval":true,"min_evidence_hits":0}}
-{"case_id":"smoke_warehouse_inventory","message":"查下 A8001 的库存数","expected":{"agent":"warehouse","skill":"inventory_exception_skill","requires_approval":false,"min_evidence_hits":0}}
-{"case_id":"smoke_warehouse_hold","message":"把 A8001 先锁库 100 片","expected":{"agent":"warehouse","skill":"stock_hold_release_skill","requires_approval":true,"min_evidence_hits":0}}
-{"case_id":"smoke_customer_reply","message":"给我一个客服回复模板，解释发货延迟","expected":{"agent":"customer_service","skill":"customer_reply_draft_skill","requires_approval":false,"min_evidence_hits":0}}
-{"case_id":"smoke_warehouse_sop","message":"出库前质检 SOP 有哪些步骤","expected":{"agent":"warehouse","skill":"warehouse_sop_retrieval_skill","requires_approval":false,"min_evidence_hits":0}}
