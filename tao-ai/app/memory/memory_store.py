@@ -21,7 +21,7 @@ _mysql_saver = None
 @lru_cache(maxsize=1)
 def get_checkpointer() -> BaseCheckpointSaver:
     s = get_settings()
-    if s.use_stub_stores:
+    if not s.mysql_active():
         return InMemorySaver()
     return _get_mysql_checkpointer()
 
@@ -41,7 +41,7 @@ def _get_mysql_checkpointer() -> BaseCheckpointSaver:
 async def setup_checkpointer() -> None:
     """应用启动时调用, 自动建表。"""
     s = get_settings()
-    if s.use_stub_stores:
+    if not s.mysql_active():
         return
     saver = _get_mysql_checkpointer()
     await saver.setup()

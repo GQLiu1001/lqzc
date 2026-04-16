@@ -18,9 +18,9 @@ class MCPClient:
         self._settings = get_settings()
 
     async def call(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:
-        if self._settings.use_stub_stores:
+        if not self._settings.mcp_active():
             return self._stub(tool, args)
-        raise NotImplementedError("真实 MCP 调用将在 M2 接入")
+        raise NotImplementedError("真实 MCP 调用将在 lqzc-mcp-server 上线后接入")
 
     # --- stub 实现 ---
     def _stub(self, tool: str, args: dict[str, Any]) -> dict[str, Any]:

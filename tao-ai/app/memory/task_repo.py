@@ -307,7 +307,7 @@ def get_task_repo() -> TaskRepo:
     if _repo is not None:
         return _repo
     s = get_settings()
-    if s.use_stub_stores:
+    if not s.mysql_active():
         _repo = InMemoryTaskRepo()
     else:
         _repo = MySqlTaskRepo()

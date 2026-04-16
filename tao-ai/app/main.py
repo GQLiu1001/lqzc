@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
         s.app_env, s.use_stub_stores, s.ollama_chat_model,
     )
 
-    if not s.use_stub_stores:
+    if s.mysql_active():
         from app.memory.db import get_pool
         from app.memory.memory_store import setup_checkpointer
         await get_pool()
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    if not s.use_stub_stores:
+    if s.mysql_active():
         from app.memory.db import close_pool
         from app.memory.memory_store import close_checkpointer
         await close_checkpointer()

@@ -1,6 +1,6 @@
 [project]
 name = "tao-ai"
-version = "0.5.0"
+version = "0.6.0"
 description = "Agent runtime for lqzc based on LangChain, LangGraph, Milvus, and MySQL."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -10,6 +10,8 @@ dependencies = [
     "httpx>=0.28.0",
     "langchain-core>=1.2.20",
     "langchain-ollama>=1.0.0",
+    "langchain-text-splitters>=0.3.6",
+    "python-multipart>=0.0.20",
     "langgraph>=1.1.4",
     "langgraph-checkpoint>=4.0.0",
     "langgraph-checkpoint-mysql[aiomysql]>=3.0.0",

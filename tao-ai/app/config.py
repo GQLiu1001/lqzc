@@ -36,7 +36,8 @@ class Settings(BaseSettings):
     mysql_password: str = "root"
     mysql_charset: str = "utf8mb4"
 
-    # milvus (M1: 仅保留配置)
+    # milvus
+    milvus_uri: str = ""  # 非空则覆盖 host:port; 例: "./data/milvus.db" (Milvus Lite) 或 "http://other:19530"
     milvus_host: str = "localhost"
     milvus_port: int = 19530
     milvus_embedding_dim: int = 4096
@@ -64,8 +65,22 @@ class Settings(BaseSettings):
     enable_metrics: bool = True
     metrics_path: str = "/metrics"
 
-    # m1 开关: 是否使用 stub (内存) 替代真实 MySQL / Milvus / MCP
-    use_stub_stores: bool = Field(default=True, description="M1: 用内存实现绕过外部依赖")
+    # 全局 stub 总开关 (legacy, 一刀切 stub 掉 MySQL / Milvus / MCP)
+    use_stub_stores: bool = Field(default=True, description="True 时所有外部依赖走 stub")
+
+    # 子系统精细开关: 任一为 True, 则该子系统强制走真实路径, 不受 use_stub_stores 影响
+    use_real_milvus: bool = Field(default=False, description="单独启用真实 Milvus (含 Milvus Lite)")
+    use_real_mysql: bool = Field(default=False, description="单独启用真实 MySQL (Checkpointer + TaskRepo)")
+    use_real_mcp: bool = Field(default=False, description="单独启用真实 MCP server")
+
+    def milvus_active(self) -> bool:
+        return self.use_real_milvus or not self.use_stub_stores
+
+    def mysql_active(self) -> bool:
+        return self.use_real_mysql or not self.use_stub_stores
+
+    def mcp_active(self) -> bool:
+        return self.use_real_mcp or not self.use_stub_stores
 
 
 @lru_cache(maxsize=1)

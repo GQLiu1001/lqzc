@@ -136,7 +136,7 @@ async def rag_search(query: str, source: Optional[str] = None) -> list[dict]:
     s = get_settings()
     top_k = s.rag_top_k
 
-    if s.use_stub_stores:
+    if not s.milvus_active():
         hits = _get_mem_store().search(query, top_k=top_k, source=source)
         observe_rag_hits(len(hits), mode="stub")
     else:

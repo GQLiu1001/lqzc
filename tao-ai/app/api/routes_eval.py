@@ -130,8 +130,8 @@ async def run_regression(req: RegressionRequest):
 @router.post("/index-seed")
 async def index_seed():
     s = get_settings()
-    if s.use_stub_stores:
-        return {"message": "stub mode, seed docs are loaded in-memory automatically", "count": 0}
+    if not s.milvus_active():
+        return {"message": "milvus disabled, seed docs are loaded in-memory automatically", "count": 0}
 
     from app.retrieval.collections import ensure_collections
     from app.retrieval.indexing import seed_index
@@ -144,7 +144,7 @@ async def index_seed():
 @router.get("/collections")
 async def collection_stats_endpoint():
     s = get_settings()
-    if s.use_stub_stores:
+    if not s.milvus_active():
         from app.retrieval.indexing import SEED_DOCS
         return {"mode": "stub", "seed_doc_count": len(SEED_DOCS)}
 
