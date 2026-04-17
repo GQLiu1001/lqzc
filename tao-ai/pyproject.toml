@@ -1,28 +1,30 @@
 [project]
 name = "tao-ai"
-version = "0.6.0"
-description = "Agent runtime for lqzc based on LangChain, LangGraph, Milvus, and MySQL."
+version = "0.7.0"
+description = "TAO AI v3 agent runtime based on LangChain, LangGraph, Deep Agents, Milvus, PostgreSQL, Redis, and FastAPI."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "httpx>=0.28.0",
-    "langchain-core>=1.2.20",
+    "langchain>=1.2.15,<2.0.0",
+    "langchain-core>=1.2.0",
     "langchain-ollama>=1.0.0",
     "langchain-text-splitters>=0.3.6",
-    "python-multipart>=0.0.20",
-    "langgraph>=1.1.4",
+    "langgraph>=1.1.5,<1.2",
+    "deepagents>=0.5.0,<0.6.0",
     "langgraph-checkpoint>=4.0.0",
-    "langgraph-checkpoint-mysql[aiomysql]>=3.0.0",
-    "aiomysql>=0.2.0",
+    "langgraph-checkpoint-postgres>=3.0.0",
+    "psycopg[binary]>=3.2.0",
+    "redis>=6.0.0",
+    "python-multipart>=0.0.20",
     "mcp>=1.26.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.5.0",
     "prometheus-client>=0.20.0",
     "python-dotenv>=1.0.1",
     "pymilvus>=2.4.5",
-    "pymysql>=1.1.1",
     "numpy>=1.26.0",
 ]
 
