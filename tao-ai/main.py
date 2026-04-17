@@ -7,12 +7,14 @@ from app.api.eval import router as eval_router
 from app.api.interrupt import router as interrupt_router
 from app.core.checkpoint import create_checkpointer
 from app.core.db import close_db_pool, open_db_pool
+from app.core.trace import configure_logging
 from app.mcp.client import close_mcp_client
 from app.repositories.redis_repo import close_redis
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()
     await open_db_pool()
     async with create_checkpointer() as checkpointer:
         app.state.checkpointer = checkpointer

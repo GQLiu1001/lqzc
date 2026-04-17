@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from time import perf_counter
 from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
@@ -25,6 +26,7 @@ from langgraph.types import Command, Interrupt
 from app.agents.warehouse_agent.approval_subagent import build_approval_subagent
 from app.agents.warehouse_agent.inventory_subagent import build_inventory_subagent
 from app.schemas.agent import DomainAgentResult
+from app.core.trace import trace_in, trace_out
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -80,6 +82,13 @@ class WarehouseAgent:
         user_context: dict,
     ) -> DomainAgentResult:
         runtime_guard = self._build_runtime_guard(user_context)
+        trace_in(
+            "warehouse_agent.invoke",
+            session_id=session_id,
+            message=message[:200],
+            runtime_guard=runtime_guard,
+        )
+        started = perf_counter()
 
         try:
             result = await self._agent.ainvoke(
@@ -98,15 +107,36 @@ class WarehouseAgent:
             )
         except Exception:
             logger.exception("WarehouseAgent invoke failed for session %s", session_id)
-            return DomainAgentResult(
+            failure = DomainAgentResult(
                 route="warehouse",
                 answer="抱歉，仓储域处理异常，请稍后再试。",
                 status="error",
                 error_code="WAREHOUSE_AGENT_ERROR",
                 error_message="WarehouseAgent 内部执行异常",
             )
+            trace_out(
+                "warehouse_agent.invoke",
+                failure,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                answer=failure.answer[:200],
+                tool_calls=failure.tool_calls,
+                skill_used=failure.skill_used,
+                subagent_hint=_detect_subagents(failure.tool_calls),
+            )
+            return failure
 
-        return self._normalize_result(result)
+        normalized = self._normalize_result(result)
+        trace_out(
+            "warehouse_agent.invoke",
+            normalized,
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            answer=normalized.answer[:200],
+            tool_calls=normalized.tool_calls,
+            skill_used=normalized.skill_used,
+            interrupt=normalized.interrupt,
+            subagent_hint=_detect_subagents(normalized.tool_calls),
+        )
+        return normalized
 
     async def resume(
         self,
@@ -115,35 +145,64 @@ class WarehouseAgent:
         tool: str,
         comment: str | None,
     ) -> DomainAgentResult:
+        trace_in(
+            "warehouse_agent.resume",
+            session_id=session_id,
+            decision=decision,
+            tool=tool,
+            comment=comment,
+        )
+        started = perf_counter()
         pending_interrupts = await self.get_pending_interrupts(session_id)
         if not pending_interrupts:
-            return DomainAgentResult(
+            result = DomainAgentResult(
                 route="warehouse",
                 answer="当前会话没有待处理的审批中断。",
                 status="error",
                 error_code="NO_PENDING_INTERRUPT",
                 error_message="warehouse graph has no pending interrupt",
             )
+            trace_out(
+                "warehouse_agent.resume",
+                result,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                pending_interrupts=pending_interrupts,
+            )
+            return result
 
         if len(pending_interrupts) != 1:
-            return DomainAgentResult(
+            result = DomainAgentResult(
                 route="warehouse",
                 answer="当前会话存在多个待处理审批动作，暂不支持一次性恢复。",
                 status="error",
                 error_code="MULTIPLE_PENDING_INTERRUPTS",
                 error_message=str(pending_interrupts),
             )
+            trace_out(
+                "warehouse_agent.resume",
+                result,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                pending_interrupts=pending_interrupts,
+            )
+            return result
 
         pending = pending_interrupts[0]
         interrupt_tool = pending.get("tool")
         if tool and interrupt_tool and tool != interrupt_tool:
-            return DomainAgentResult(
+            result = DomainAgentResult(
                 route="warehouse",
                 answer=f"当前待审批工具为 {interrupt_tool}，与请求中的 {tool} 不一致。",
                 status="error",
                 error_code="INTERRUPT_TOOL_MISMATCH",
                 error_message=f"expected={interrupt_tool}, actual={tool}",
             )
+            trace_out(
+                "warehouse_agent.resume",
+                result,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                pending_interrupt=pending,
+            )
+            return result
 
         decision_payload = _build_hitl_decision(decision, pending, comment)
         try:
@@ -158,15 +217,34 @@ class WarehouseAgent:
             )
         except Exception:
             logger.exception("WarehouseAgent resume failed for session %s", session_id)
-            return DomainAgentResult(
+            failure = DomainAgentResult(
                 route="warehouse",
                 answer="审批恢复执行失败，请稍后重试。",
                 status="error",
                 error_code="WAREHOUSE_RESUME_ERROR",
                 error_message="WarehouseAgent resume exception",
             )
+            trace_out(
+                "warehouse_agent.resume",
+                failure,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                pending_interrupt=pending,
+            )
+            return failure
 
-        return self._normalize_result(result)
+        normalized = self._normalize_result(result)
+        trace_out(
+            "warehouse_agent.resume",
+            normalized,
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            pending_interrupt=pending,
+            answer=normalized.answer[:200],
+            tool_calls=normalized.tool_calls,
+            skill_used=normalized.skill_used,
+            interrupt=normalized.interrupt,
+            subagent_hint=_detect_subagents(normalized.tool_calls),
+        )
+        return normalized
 
     async def get_pending_interrupts(self, session_id: str) -> list[dict]:
         snapshot = await self._agent.aget_state(
@@ -297,3 +375,15 @@ def _build_hitl_decision(decision: str, pending_interrupt: dict, comment: str | 
             "message": (comment or f"{tool} 未获审批通过，已拒绝执行。").strip(),
         }
     raise ValueError(f"Unsupported decision: {decision}")
+
+
+def _detect_subagents(tool_calls: list[str]) -> list[str]:
+    subagents: list[str] = []
+    inventory_tools = {"inventory_query", "inventory_log_query"}
+    approval_tools = {"outbound_apply", "approval_status_query"}
+
+    if any(name in inventory_tools for name in tool_calls):
+        subagents.append("warehouse_inventory_subagent")
+    if any(name in approval_tools for name in tool_calls):
+        subagents.append("warehouse_approval_subagent")
+    return subagents

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import re
+from time import perf_counter
 
 from langchain_ollama import ChatOllama
 
 from app.core.config import settings
+from app.core.trace import trace_error, trace_in, trace_out
 from app.supervisor.state import SupervisorState
 
 logger = logging.getLogger(__name__)
@@ -55,20 +57,53 @@ _CLASSIFIER_PROMPT = """\
 
 
 async def _llm_route(message: str) -> tuple[str, str, float]:
+    started = perf_counter()
+    prompt = _CLASSIFIER_PROMPT.format(message=message)
+    trace_in("supervisor._llm_route", prompt=prompt, message=message[:200])
     try:
         llm = ChatOllama(
             model=settings.ollama_chat_model,
             base_url=settings.ollama_base_url,
             temperature=0,
         )
-        resp = await llm.ainvoke(_CLASSIFIER_PROMPT.format(message=message))
+        resp = await llm.ainvoke(prompt)
         raw = resp.content.strip().lower()
         if "mall" in raw:
+            trace_out(
+                "supervisor._llm_route",
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                raw_output=raw,
+                route="mall",
+                confidence=0.8,
+                reason="LLM 分类为商城域",
+            )
             return "mall", "LLM 分类为商城域", 0.8
         if "warehouse" in raw:
+            trace_out(
+                "supervisor._llm_route",
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                raw_output=raw,
+                route="warehouse",
+                confidence=0.8,
+                reason="LLM 分类为仓储域",
+            )
             return "warehouse", "LLM 分类为仓储域", 0.8
-    except Exception:
+    except Exception as exc:
         logger.warning("LLM router failed, falling back", exc_info=True)
+        trace_error(
+            "supervisor._llm_route",
+            exc,
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            route="fallback",
+        )
+        return "fallback", "LLM 无法判断或调用失败", 0.0
+    trace_out(
+        "supervisor._llm_route",
+        elapsed_ms=int((perf_counter() - started) * 1000),
+        route="fallback",
+        confidence=0.0,
+        reason="LLM 无法判断或调用失败",
+    )
     return "fallback", "LLM 无法判断或调用失败", 0.0
 
 
@@ -76,25 +111,43 @@ async def _llm_route(message: str) -> tuple[str, str, float]:
 
 async def route_node(state: SupervisorState) -> dict:
     """根据身份 + 关键词 + LLM 判断业务域。"""
+    started = perf_counter()
     user_ctx = state["user_context"]
     message = state["message"]
     user_type = user_ctx.get("user_type", "customer")
     role = user_ctx.get("role", "")
+    trace_in(
+        "supervisor.route_node",
+        session_id=state.get("session_id"),
+        message=message[:200],
+        user_type=user_type,
+        role=role,
+    )
 
     # 第一层：customer 只能走 mall
     if user_type == "customer":
-        return {
+        result = {
             "route": _CUSTOMER_ONLY_ROUTE,
             "route_reason": "customer 身份默认走商城域",
             "intent": "auto",
             "domain": "mall",
         }
+        trace_out(
+            "supervisor.route_node",
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            route=result["route"],
+            reason=result["route_reason"],
+            layer1="customer_only",
+            layer2="skipped",
+            layer3="skipped",
+        )
+        return result
 
     # 第二层：关键词路由
     kw_route, kw_reason = _keyword_route(message)
     if kw_route is not None:
         if kw_route == "warehouse" and role not in _WAREHOUSE_ROLES:
-            return {
+            result = {
                 "route": "fallback",
                 "route_reason": f"关键词命中仓储域但角色 {role} 无权限",
                 "intent": "auto",
@@ -102,17 +155,39 @@ async def route_node(state: SupervisorState) -> dict:
                 "status": "forbidden",
                 "error": "WAREHOUSE_ROLE_DENIED",
             }
-        return {
+            trace_out(
+                "supervisor.route_node",
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                route=result["route"],
+                reason=result["route_reason"],
+                status=result["status"],
+                error=result["error"],
+                layer1="pass",
+                layer2=kw_reason,
+                layer3="skipped",
+            )
+            return result
+        result = {
             "route": kw_route,
             "route_reason": kw_reason,
             "intent": "auto",
             "domain": kw_route,
         }
+        trace_out(
+            "supervisor.route_node",
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            route=result["route"],
+            reason=result["route_reason"],
+            layer1="pass",
+            layer2=kw_reason,
+            layer3="skipped",
+        )
+        return result
 
     # 第三层：LLM 分类
     llm_route, llm_reason, confidence = await _llm_route(message)
     if llm_route == "warehouse" and role not in _WAREHOUSE_ROLES:
-        return {
+        result = {
             "route": "fallback",
             "route_reason": f"LLM 分类为仓储域但角色 {role} 无权限",
             "intent": "auto",
@@ -120,15 +195,39 @@ async def route_node(state: SupervisorState) -> dict:
             "status": "forbidden",
             "error": "WAREHOUSE_ROLE_DENIED",
         }
+        trace_out(
+            "supervisor.route_node",
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            route=result["route"],
+            reason=result["route_reason"],
+            status=result["status"],
+            error=result["error"],
+            layer1="pass",
+            layer2=kw_reason,
+            layer3=llm_reason,
+            llm_confidence=confidence,
+        )
+        return result
     if confidence < 0.5:
         llm_route = "fallback"
 
-    return {
+    result = {
         "route": llm_route,
         "route_reason": llm_reason,
         "intent": "auto",
         "domain": llm_route if llm_route != "fallback" else "",
     }
+    trace_out(
+        "supervisor.route_node",
+        elapsed_ms=int((perf_counter() - started) * 1000),
+        route=result["route"],
+        reason=result["route_reason"],
+        layer1="pass",
+        layer2=kw_reason,
+        layer3=llm_reason,
+        llm_confidence=confidence,
+    )
+    return result
 
 
 def route_dispatcher(state: SupervisorState) -> str:

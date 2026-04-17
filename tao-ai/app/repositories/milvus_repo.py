@@ -6,12 +6,14 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from langchain_ollama import OllamaEmbeddings
 from pymilvus import DataType, MilvusClient
 
 from app.core.config import settings
+from app.core.trace import trace_error, trace_in, trace_out
 from app.rag.constants import CACHE_ROOT, PUBLIC_ACCESS
 from app.schemas.rag import RetrievedChunk
 
@@ -86,19 +88,30 @@ class MilvusRepository:
         return await asyncio.to_thread(self._index_chunks_sync, chunks, force_refresh)
 
     def _search_sync(self, query: str, top_k: int, filters: dict) -> list[RetrievedChunk]:
+        started = perf_counter()
+        trace_in("milvus._search_sync", query=query, top_k=top_k, filters=filters)
         available, _ = self.availability(refresh=True)
         if not available:
+            trace_out("milvus._search_sync", elapsed_ms=int((perf_counter() - started) * 1000), available=False, hits=0)
             return []
 
         if not self._has_collection():
+            trace_out(
+                "milvus._search_sync",
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                available=True,
+                collection_exists=False,
+                hits=0,
+            )
             return []
 
+        expr = ""
+        dense_limit = max(top_k, min(settings.rag_recall_k, 32))
         try:
             client = self._get_client()
             client.load_collection(COLLECTION_NAME, timeout=10)
             query_vector = self._get_embeddings().embed_query(query)
             expr = self._build_filter_expression(filters)
-            dense_limit = max(top_k, min(settings.rag_recall_k, 32))
             raw_results = client.search(
                 collection_name=COLLECTION_NAME,
                 data=[query_vector],
@@ -123,9 +136,27 @@ class MilvusRepository:
             )
         except Exception as exc:
             logger.warning("Milvus dense retrieval failed: %s", exc)
+            trace_out(
+                "milvus._search_sync",
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                available=True,
+                filter_expr=expr,
+                dense_limit=dense_limit,
+                hits=0,
+                error=str(exc),
+            )
             return []
 
         if not raw_results:
+            trace_out(
+                "milvus._search_sync",
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                available=True,
+                filter_expr=expr,
+                dense_limit=dense_limit,
+                raw_hits=0,
+                hits=0,
+            )
             return []
 
         hits: list[RetrievedChunk] = []
@@ -150,31 +181,54 @@ class MilvusRepository:
                     metadata=metadata,
                 )
             )
+        trace_out(
+            "milvus._search_sync",
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            available=True,
+            filter_expr=expr,
+            dense_limit=dense_limit,
+            raw_hits=len(raw_results[0]),
+            hits=len(hits),
+        )
         return hits
 
     def _index_chunks_sync(self, chunks: list[dict], force_refresh: bool) -> dict:
+        started = perf_counter()
+        trace_in(
+            "milvus._index_chunks_sync",
+            chunks=len(chunks),
+            force_refresh=force_refresh,
+        )
         available, reason = self.availability(refresh=True)
         if not available:
-            return {"available": False, "indexed": 0, "message": reason}
+            result = {"available": False, "indexed": 0, "message": reason}
+            trace_out("milvus._index_chunks_sync", result, elapsed_ms=int((perf_counter() - started) * 1000))
+            return result
 
         if not chunks:
-            return {"available": True, "indexed": 0, "message": "no chunks to index"}
+            result = {"available": True, "indexed": 0, "message": "no chunks to index"}
+            trace_out("milvus._index_chunks_sync", result, elapsed_ms=int((perf_counter() - started) * 1000))
+            return result
 
         signature = self._build_signature(chunks)
         if not force_refresh and self._is_collection_current(signature):
-            return {
+            result = {
                 "available": True,
                 "indexed": 0,
                 "message": "Milvus index already up to date",
                 "syncSkipped": True,
             }
+            trace_out("milvus._index_chunks_sync", result, elapsed_ms=int((perf_counter() - started) * 1000))
+            return result
 
         try:
             embedding_dim = self._embedding_dimension()
             self._rebuild_collection(embedding_dim)
             indexed_count = 0
+            batch_count = 0
 
             for batch in _batch(chunks, UPSERT_BATCH_SIZE):
+                batch_count += 1
                 texts = [str(item.get("content") or "") for item in batch]
                 vectors = self._get_embeddings().embed_documents(texts)
                 records = [
@@ -192,20 +246,35 @@ class MilvusRepository:
             self._indexed_signature = signature
             self._indexed_model = settings.ollama_embed_model
             self._save_sync_state(signature, indexed_count)
-            return {
+            result = {
                 "available": True,
                 "indexed": indexed_count,
                 "message": "Milvus index rebuilt",
                 "syncSkipped": False,
             }
+            trace_out(
+                "milvus._index_chunks_sync",
+                result,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                batches=batch_count,
+                indexed=indexed_count,
+            )
+            return result
         except Exception as exc:
             logger.exception("Milvus indexing failed")
-            return {
+            result = {
                 "available": True,
                 "indexed": 0,
                 "message": f"Milvus indexing failed: {exc}",
                 "syncSkipped": False,
             }
+            trace_out(
+                "milvus._index_chunks_sync",
+                result,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                batches=batch_count if "batch_count" in locals() else 0,
+            )
+            return result
 
     def _get_client(self) -> MilvusClient:
         if self._client is None:
@@ -238,8 +307,15 @@ class MilvusRepository:
             return False
 
     def _rebuild_collection(self, embedding_dim: int) -> None:
+        started = perf_counter()
+        trace_in(
+            "milvus._rebuild_collection",
+            collection=COLLECTION_NAME,
+            embedding_dim=embedding_dim,
+        )
         client = self._get_client()
-        if self._has_collection():
+        dropped_old = self._has_collection()
+        if dropped_old:
             client.drop_collection(COLLECTION_NAME, timeout=10)
 
         schema = MilvusClient.create_schema(auto_id=False, enable_dynamic_field=False)
@@ -280,6 +356,14 @@ class MilvusRepository:
             schema=schema,
             index_params=index_params,
             consistency_level="Bounded",
+        )
+        trace_out(
+            "milvus._rebuild_collection",
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            collection=COLLECTION_NAME,
+            embedding_dim=embedding_dim,
+            dropped_old=dropped_old,
+            created_new=True,
         )
 
     def _build_record(self, chunk: dict, vector: list[float]) -> dict:

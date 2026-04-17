@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from time import perf_counter
 from typing import TYPE_CHECKING
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.trace import trace_in, trace_out
 from app.schemas.agent import DomainAgentResult
 from app.tools.rag_tools import shared_policy_rag_search
 from app.tools.mall_tools import (
@@ -90,6 +92,13 @@ class MallAgent:
         user_context: dict,
     ) -> DomainAgentResult:
         runtime_guard = self._build_runtime_guard(user_context)
+        trace_in(
+            "mall_agent.invoke",
+            session_id=session_id,
+            message=message[:200],
+            runtime_guard=runtime_guard,
+        )
+        started = perf_counter()
 
         try:
             result = await self._agent.ainvoke(
@@ -108,15 +117,33 @@ class MallAgent:
             )
         except Exception:
             logger.exception("MallAgent invoke failed for session %s", session_id)
-            return DomainAgentResult(
+            failure = DomainAgentResult(
                 route="mall",
                 answer="抱歉，商城域处理异常，请稍后再试。",
                 status="error",
                 error_code="MALL_AGENT_ERROR",
                 error_message="MallAgent 内部执行异常",
             )
+            trace_out(
+                "mall_agent.invoke",
+                failure,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+                answer=failure.answer[:200],
+                tool_calls=failure.tool_calls,
+                skill_used=failure.skill_used,
+            )
+            return failure
 
-        return self._normalize_result(result)
+        normalized = self._normalize_result(result)
+        trace_out(
+            "mall_agent.invoke",
+            normalized,
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            answer=normalized.answer[:200],
+            tool_calls=normalized.tool_calls,
+            skill_used=normalized.skill_used,
+        )
+        return normalized
 
     # ── private helpers ───────────────────────────────────────────────
 

@@ -5,6 +5,7 @@ from functools import lru_cache
 from time import perf_counter
 
 from app.core.config import settings
+from app.core.trace import trace_in, trace_out
 from app.rag import filters, formatter, reranker, retriever
 from app.repositories.document_repo import describe_index, load_indexed_chunks
 from app.repositories.milvus_repo import get_milvus_repository
@@ -17,14 +18,25 @@ class RAGService:
         started = perf_counter()
 
         query = (req.query or "").strip()
+        trace_in(
+            "rag.search",
+            session_id=req.session_id,
+            domain=req.domain,
+            scene=req.scene or "general",
+            query=query,
+            top_k=req.top_k,
+            user_context=req.user_context,
+        )
         if not query:
-            return RAGSearchResult(
+            result = RAGSearchResult(
                 success=False,
                 query=req.query,
                 no_hit=True,
                 message="请提供检索问题",
                 error_code="MISSING_QUERY",
             )
+            trace_out("rag.search", result, elapsed_ms=int((perf_counter() - started) * 1000))
+            return result
 
         normalized_req = req.model_copy(
             update={
@@ -56,7 +68,7 @@ class RAGService:
         context_text = formatter.build_context_pack(reranked)
         latency_ms = int((perf_counter() - started) * 1000)
 
-        return RAGSearchResult(
+        result = RAGSearchResult(
             success=not no_hit,
             query=query,
             rewritten_query=rewritten_query,
@@ -69,6 +81,21 @@ class RAGService:
             message="未检索到足够依据" if no_hit else "ok",
             latency_ms=latency_ms,
         )
+        trace_out(
+            "rag.search",
+            result,
+            elapsed_ms=latency_ms,
+            rewritten_query=rewritten_query,
+            used_filters=used_filters,
+            indexed_chunks=len(indexed_chunks),
+            filtered_chunks=len(filtered_chunks),
+            milvus_hits=len(milvus_hits),
+            lexical_hits=len(lexical_hits),
+            merged_hits=len(merged_hits),
+            reranked_hits=len(reranked),
+            mode=search_mode,
+        )
+        return result
 
     async def corpus_summary(self) -> dict:
         summary = await asyncio.to_thread(describe_index)

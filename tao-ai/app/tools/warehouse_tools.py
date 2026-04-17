@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from langchain_core.tools import tool
 
 from app.core.runtime_context import get_session_id, get_user_context
+from app.core.trace import traced
 from app.mcp import client as mcp_client
 from app.tools import rag_tools
 
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 # ── 库存查询类工具（inventory_subagent 使用）──────────────────────────
 
 @tool
+@traced("tool.inventory_query")
 async def inventory_query(warehouse_id: str, item_id: str) -> dict:
     """查询指定仓库下某商品当前库存数量、规格、价格等信息。"""
     ctx = get_user_context()
@@ -39,6 +41,7 @@ async def inventory_query(warehouse_id: str, item_id: str) -> dict:
 
 
 @tool
+@traced("tool.inventory_log_query")
 async def inventory_log_query(
     warehouse_id: str,
     item_id: str,
@@ -59,6 +62,7 @@ async def inventory_log_query(
 # ── 审批执行类工具（approval_subagent 使用）──────────────────────────
 
 @tool
+@traced("tool.outbound_apply")
 async def outbound_apply(
     warehouse_id: str,
     item_id: str,
@@ -103,6 +107,7 @@ async def outbound_apply(
 
 
 @tool
+@traced("tool.approval_status_query")
 async def approval_status_query(approval_id: str) -> dict:
     """查询审批单当前状态（pending / approved / rejected）。"""
     ctx = get_user_context()

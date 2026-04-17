@@ -7,6 +7,7 @@ from app.audit.schemas import AuditEvent
 from app.audit.service import record_audit_event
 from app.auth.auth import get_current_user
 from app.core.runtime_context import set_session_id, set_user_context
+from app.core.trace import trace_in, trace_out
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.user import UserContext
 from app.supervisor.service import SupervisorService
@@ -24,6 +25,15 @@ async def chat(
 
     set_user_context(user_ctx)
     set_session_id(session_id)
+    trace_in(
+        "chat",
+        session_id=session_id,
+        message_id=body.message_id,
+        user_id=user_ctx.user_id,
+        user_type=user_ctx.user_type,
+        role=user_ctx.role,
+        message=body.message[:100],
+    )
 
     started = time.perf_counter()
     svc = SupervisorService(request.app.state.checkpointer)
@@ -45,5 +55,13 @@ async def chat(
             error_code=data.error_code,
             latency_ms=latency_ms,
         )
+    )
+    trace_out(
+        "chat",
+        resp,
+        elapsed_ms=latency_ms,
+        route=data.route,
+        status=data.status,
+        tool_calls=data.tool_calls,
     )
     return resp
