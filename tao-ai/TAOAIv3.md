@@ -2525,25 +2525,31 @@ ai:
 
 ## 7.3 当前已暴露的 MCP 工具
 
-根据现有 Java 代码，当前已提供至少以下工具：
+当前 Java 端已经按业务域拆成两个原始 MCP Tool Service：
 
-### 1）`getInventoryByModel`
+- `MallMcpTools`
+- `WarehouseMcpTools`
+
+这里有一个非常关键的实现约定：
+
+- `customerId`
+- `operatorUserId`
+- `roleId`
+- `idempotencyKey`
+
+这些字段是 **FastAPI MCP adapter 内部注入的运行时参数**，不是直接暴露给模型自由填写的业务参数。也就是说，模型在 Python 侧看到的仍然应该是 `my_order_query(limit)`、`order_detail_query(order_no)`、`outbound_apply(warehouse_id, item_id, qty, reason)` 这类语义化工具；FastAPI adapter 再把当前 `user_context / sessionId / business_key` 补齐后调用 Java 原始 MCP Tool。
+
+### Mall 侧原始 MCP Tool
+
+#### 1）`getInventoryByModel(model)`
 
 用途：
 
 - 根据商品型号查询库存详情
 
-输入：
+返回：
 
-- `model: str`
-
-返回信息：
-
-- 库存数量
-- 规格
-- 价格
-- 仓库
-- 分类信息
+- 型号、规格、分类、表面、仓库、库存数量、销售单价
 
 适用场景：
 
@@ -2551,17 +2557,13 @@ ai:
 - “TA800-01 什么价格、什么规格”
 - “这个型号在哪个仓”
 
-### 2）`getTopSales`
+#### 2）`getTopSales()`
 
 用途：
 
 - 查询商城热销榜前五商品
 
-输入：
-
-- 无
-
-返回信息：
+返回：
 
 - 商品型号
 - 销量
@@ -2571,20 +2573,13 @@ ai:
 - “最近热销商品有哪些”
 - “商城卖得最好的前几款是什么”
 
-### 3）`searchInventory`
+#### 3）`searchInventory(current, size, category, surface)`
 
 用途：
 
 - 分页查询可售库存商品列表
 
-输入：
-
-- `current`
-- `size`
-- `category`
-- `surface`
-
-返回信息：
+返回：
 
 - 商品列表
 - 总数
@@ -2597,86 +2592,132 @@ ai:
 - “有哪些可售瓷砖”
 - “给我看某个类别的库存商品”
 
-```java
-    @McpTool(
-            name = "getInventoryByModel",
-            description = "根据瓷砖型号查询库存详情，返回库存数量、规格、价格、仓库和分类信息"
-    )
-    public InventoryLookupResponse getInventoryByModel(
-            @McpToolParam(description = "商品型号，例如 TA800-01", required = true)
-            String model
-    ) {
-        if (model == null || model.isBlank()) {
-            throw new IllegalArgumentException("model 不能为空");
-        }
-        String normalizedModel = model.trim();
-        InventoryItem item = inventoryItemService.query()
-                .eq("model", normalizedModel)
-                .one();
+#### 4）`getCustomerOrders(customerId, limit=5, status=None)`
 
-        if (item == null) {
-            throw new IllegalStateException("未找到对应库存型号: " + normalizedModel);
-        }
+用途：
 
-        return InventoryLookupResponse.from(
-                item,
-                categoryLabel(item.getCategory()),
-                surfaceLabel(item.getSurface())
-        );
-    }
+- 查询当前客户最近订单列表
 
-    @McpTool(
-            name = "getTopSales",
-            description = "查询当前商城热销榜前五商品，返回商品型号和销量"
-    )
-    public List<TopSalesItem> getTopSales() {
-        Set<ZSetOperations.TypedTuple<String>> topItems = stringRedisTemplate.opsForZSet()
-                .reverseRangeWithScores(RedisConstant.HOT_SALES, 0, 4);
+返回：
 
-        if (topItems == null || topItems.isEmpty()) {
-            return List.of();
-        }
+- 订单号
+- 订单状态与状态文案
+- 应付金额
+- 订单商品数
+- 创建时间
 
-        List<TopSalesItem> result = new ArrayList<>(topItems.size());
-        for (ZSetOperations.TypedTuple<String> tuple : topItems) {
-            Integer amount = tuple.getScore() == null ? 0 : tuple.getScore().intValue();
-            result.add(new TopSalesItem(tuple.getValue(), amount));
-        }
-        return result;
-    }
+适用场景：
 
-    @McpTool(
-            name = "searchInventory",
-            description = "分页查询可售库存商品列表，支持按类别和表面类型筛选，适用于“有什么货/有哪些库存”这类问题"
-    )
-    public MallItemsListResp searchInventory(
-            @McpToolParam(description = "当前页码，默认 1", required = false)
-            Integer current,
-            @McpToolParam(description = "每页条数，默认 10", required = false)
-            Integer size,
-            @McpToolParam(description = "商品类别筛选，可选", required = false)
-            String category,
-            @McpToolParam(description = "商品表面筛选，可选", required = false)
-            String surface
-    ) {
-        int pageNo = (current == null || current < 1) ? 1 : current;
-        int pageSize = (size == null || size < 1) ? 10 : size;
+- “我最近的订单有哪些”
+- “我还有哪些待支付订单”
+- “帮我看下最近 5 单”
 
-        IPage<MallItemsListRecord> page = new Page<>(pageNo, pageSize);
-        IPage<MallItemsListRecord> record = inventoryItemService.getItemsList(
-                page,
-                normalizeBlank(category),
-                normalizeBlank(surface)
-        );
+#### 5）`getCustomerOrderDetail(customerId, orderNo)`
 
-        MallItemsListResp resp = new MallItemsListResp();
-        resp.setRecords(record.getRecords());
-        resp.setTotal(record.getTotal());
-        resp.setCurrent(record.getCurrent());
-        resp.setSize(record.getSize());
-        return resp;
-    }
-```
+用途：
+
+- 查询当前客户指定订单详情
+
+返回：
+
+- 订单状态
+- 支付状态
+- 派送状态
+- 总价、优惠、应付金额、配送费
+- 收货地址
+- 商品明细
+
+适用场景：
+
+- “ORD202604170001 这单现在什么状态”
+- “这笔订单用了多少积分”
+- “这单买了哪些砖”
+
+### Warehouse 侧原始 MCP Tool
+
+#### 6）`getWarehouseInventory(warehouseNum, itemId=None, model=None)`
+
+用途：
+
+- 根据仓库编号和库存项 ID 或型号查询仓库库存快照
+
+返回：
+
+- 仓库
+- itemId
+- 型号、规格、分类、表面
+- 当前库存
+- 单箱数
+- 销售价
+- 更新时间
+
+适用场景：
+
+- “2 号仓这个 itemId 还有多少库存”
+- “这个型号在 3 号仓还有没有货”
+
+#### 7）`getInventoryLog(warehouseNum, itemId, days=7, limit=20)`
+
+用途：
+
+- 查询指定仓库某库存项近 N 天库存流水
+
+返回：
+
+- 当前库存
+- 近 N 天入库/出库/调拨汇总
+- 流水明细列表
+
+适用场景：
+
+- “2 号仓 itemId=4 最近 7 天流水”
+- “这个库存最近有没有异常出库”
+
+#### 8）`submitOutboundApply(warehouseNum, itemId, quantity, reason, operatorUserId, roleId, idempotencyKey)`
+
+用途：
+
+- 提交仓库出库申请并生成待审批单
+
+返回：
+
+- `approvalId`
+- `status=pending`
+- `allowedDecisions=["approve","reject"]`
+- 当前库存
+- 申请数量
+- 申请原因
+
+适用场景：
+
+- “帮我申请从 2 号仓出库 30 箱”
+- “这批货先提审批”
+
+#### 9）`getApprovalStatus(approvalId)`
+
+用途：
+
+- 查询审批单当前状态
+
+返回：
+
+- 审批单号
+- 当前状态
+- 审批提示信息
+- 申请上下文
+
+适用场景：
+
+- “APxxxx 现在审批到哪一步了”
+- “中断恢复前先查一下审批状态”
+
+当前 `submitOutboundApply / getApprovalStatus` 在 Java 端先通过 Redis 维护一个轻量审批状态快照，已经足够支撑：
+
+- `interrupt_on` 的待审批返回
+- `sessionId + tool + business_key` 的幂等去重
+- 审批状态轮询与恢复
+
+后续如果接入正式审批表或工作流引擎，只需要替换 Java 端存储实现，不需要改 FastAPI Agent 的工具调用层。
 
 ## 7.4 FastAPI 侧的 MCP 接入方式
 
@@ -2759,39 +2800,83 @@ Supervisor
 ```python
 # app/tools/mall_tools.py
 
+from langchain.tools import tool
+
+@tool
+async def my_order_query(limit: int = 5) -> list[dict]:
+    """查询当前登录客户最近订单，不允许跨用户查询。"""
+    ctx = get_runtime_user_context()
+    return await mcp_client.call_tool(
+        "getCustomerOrders",
+        {
+            "customerId": ctx.user_id,
+            "limit": limit,
+        },
+    )
+
+@tool
+async def order_detail_query(order_no: str) -> dict:
+    """查询当前登录客户某一笔订单详情。"""
+    ctx = get_runtime_user_context()
+    return await mcp_client.call_tool(
+        "getCustomerOrderDetail",
+        {
+            "customerId": ctx.user_id,
+            "orderNo": order_no,
+        },
+    )
+
 @tool
 async def get_inventory_by_model(model: str) -> dict:
     """根据商品型号查询库存、规格、价格、仓库和分类信息。"""
     return await mcp_client.call_tool("getInventoryByModel", {"model": model})
 
 @tool
-async def get_top_sales() -> list[dict]:
-    """查询商城热销榜前五商品。"""
-    return await mcp_client.call_tool("getTopSales", {})
+async def inventory_log_query(warehouse_id: int, item_id: int, days: int = 7) -> dict:
+    """查询指定仓库某库存项近 N 天流水。"""
+    return await mcp_client.call_tool(
+        "getInventoryLog",
+        {
+            "warehouseNum": warehouse_id,
+            "itemId": item_id,
+            "days": days,
+        },
+    )
 
 @tool
-async def search_inventory(
-    current: int = 1,
-    size: int = 10,
-    category: str | None = None,
-    surface: str | None = None,
-) -> dict:
-    """分页查询可售库存商品列表，支持类别和表面类型筛选。"""
+async def outbound_apply(warehouse_id: int, item_id: int, qty: int, reason: str = "") -> dict:
+    """提交出库申请，必要时进入审批流。"""
+    ctx = get_runtime_user_context()
     return await mcp_client.call_tool(
-        "searchInventory",
+        "submitOutboundApply",
         {
-            "current": current,
-            "size": size,
-            "category": category,
-            "surface": surface,
+            "warehouseNum": warehouse_id,
+            "itemId": item_id,
+            "quantity": qty,
+            "reason": reason,
+            "operatorUserId": ctx.user_id,
+            "roleId": ctx.role_ids[0],
+            "idempotencyKey": build_tool_idempotency_key(
+                session_id=ctx.session_id,
+                tool="submitOutboundApply",
+                business_key=f"{warehouse_id}:{item_id}:{qty}:{reason}",
+            ),
         },
     )
 ```
 
-这样做有三个目的：
+这里一定要强调：
+
+- Java 原始 MCP Tool 可以带运行时注入字段
+- Python 暴露给 Agent 的工具签名仍然要保持“面向意图”的窄接口
+- `customerId / operatorUserId / roleId / idempotencyKey` 由 adapter 注入，不让模型自由填写
+
+这样做有四个目的：
 
 - 屏蔽底层 MCP 协议细节
+- 屏蔽 Java 原始 Tool 的内部参数
 - 保持 Agent 工具调用方式一致
+- 保持权限与幂等逻辑由系统运行时控制
 - 后续如更换 Java 接口实现，不影响 Agent 层代码
 
 ## 7.7 MCP 工具在 Mall / Warehouse 域中的使用建议
@@ -2803,27 +2888,37 @@ async def search_inventory(
 - `getInventoryByModel`
 - `getTopSales`
 - `searchInventory`
+- `getCustomerOrders`
+- `getCustomerOrderDetail`
 
 适用场景：
 
 - 商品库存查询
 - 商品列表查询
 - 热销商品推荐
+- 我的订单查询
+- 指定订单详情查询
 
-### WarehouseAgent 当前可复用的 MCP 工具
-
-当前若 Java 侧返回的是库存商品信息，也可在仓储场景下有限复用：
-
-- `getInventoryByModel`
-
-但如果后续仓储场景要进一步落地，建议 Java 端补充更明确的仓储工具，例如：
+### WarehouseAgent 当前可直接使用的 MCP 工具
 
 - `getWarehouseInventory`
 - `getInventoryLog`
-- `getApprovalStatus`
 - `submitOutboundApply`
+- `getApprovalStatus`
+- `getInventoryByModel`
 
-当前文档里不应假设这些工具已经存在，只能写成**后续可扩展方向**，不能写成现状。
+适用场景：
+
+- 仓库库存快照查询
+- 近 N 天库存流水分析
+- 出库审批申请
+- 审批状态轮询
+- 通过型号反查库存项入口
+
+需要额外强调两点：
+
+1. `submitOutboundApply` 是**执行型工具**，它当前负责生成待审批单与幂等状态，不直接扣减库存。
+2. 真正“审批通过后执行出库”的动作，建议继续放在后续审批恢复链路或正式工作流服务中，不要让模型在未确认审批结果时直接做扣库存。
 
 ## 7.8 MCP 的错误处理与降级策略
 
@@ -2857,11 +2952,24 @@ MCP 调用失败不能直接导致整个 `/chat` 链路崩溃，应统一处理�
 - 返回明确参数错误信息
 - 允许 Agent 补问用户，而不是直接失败
 
-### 3）业务无结果
+### 3）权限错误
+
+例如：
+
+- `customer` 误调用仓库审批工具
+- `roleId` 无权发起出库审批
+
+处理策略：
+
+- 返回明确的 `forbidden / denied` 工具错误
+- Agent 走降级答复，不编造审批结果
+
+### 4）业务无结果或状态未命中
 
 例如：
 
 - 型号不存在
+- 审批单不存在或已过期
 - 热销榜暂无数据
 - 查询条件下无商品
 
@@ -2870,7 +2978,7 @@ MCP 调用失败不能直接导致整个 `/chat` 链路崩溃，应统一处理�
 - 视为正常业务结果，不应等同系统错误
 - 返回“未查询到”而不是抛系统异常
 
-### 4）服务端内部异常
+### 5）服务端内部异常
 
 例如：
 
@@ -2893,6 +3001,8 @@ MCP 调用应纳入统一审计与日志体系。
 - `route`
 - `tool_name`
 - `tool_args`（脱敏后）
+- `approval_id`（如有）
+- `idempotency_key`（如有）
 - `latency_ms`
 - `status`
 - `error_code`

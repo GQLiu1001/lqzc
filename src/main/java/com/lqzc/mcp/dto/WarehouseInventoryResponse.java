@@ -5,8 +5,10 @@ import com.lqzc.mcp.support.McpSupport;
 
 import java.math.BigDecimal;
 
-public record InventoryLookupResponse(
-        Long id,
+public record WarehouseInventoryResponse(
+        Long itemId,
+        Integer warehouseNum,
+        String warehouseLabel,
         String model,
         String manufacturer,
         String specification,
@@ -14,37 +16,29 @@ public record InventoryLookupResponse(
         String categoryLabel,
         Integer surface,
         String surfaceLabel,
-        Integer warehouseCode,
-        String warehouseLabel,
         Integer totalAmount,
         Integer unitPerBox,
         BigDecimal sellingPrice,
-        String remark
+        String remark,
+        String updateTime
 ) {
-    public static InventoryLookupResponse from(InventoryItem item) {
-        return from(
-                item,
-                McpSupport.categoryLabel(item.getCategory()),
-                McpSupport.surfaceLabel(item.getSurface())
-        );
-    }
-
-    public static InventoryLookupResponse from(InventoryItem item, String categoryLabel, String surfaceLabel) {
-        return new InventoryLookupResponse(
+    public static WarehouseInventoryResponse from(InventoryItem item) {
+        return new WarehouseInventoryResponse(
                 item.getId(),
+                item.getWarehouseNum(),
+                McpSupport.warehouseLabel(item.getWarehouseNum()),
                 item.getModel(),
                 item.getManufacturer(),
                 item.getSpecification(),
                 item.getCategory(),
-                categoryLabel,
+                McpSupport.categoryLabel(item.getCategory()),
                 item.getSurface(),
-                surfaceLabel,
-                item.getWarehouseNum(),
-                McpSupport.warehouseLabel(item.getWarehouseNum()),
+                McpSupport.surfaceLabel(item.getSurface()),
                 item.getTotalAmount(),
                 item.getUnitPerBox(),
                 item.getSellingPrice(),
-                item.getRemark()
+                item.getRemark(),
+                McpSupport.formatDateTime(item.getUpdateTime())
         );
     }
 }

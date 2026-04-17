@@ -1,14 +1,23 @@
 package com.lqzc.mcp.tool;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lqzc.common.constant.RedisConstant;
 import com.lqzc.common.domain.InventoryItem;
+import com.lqzc.common.domain.OrderDetail;
+import com.lqzc.common.domain.OrderInfo;
 import com.lqzc.common.records.MallItemsListRecord;
 import com.lqzc.common.resp.MallItemsListResp;
+import com.lqzc.mcp.dto.CustomerOrderItem;
 import com.lqzc.mcp.dto.InventoryLookupResponse;
+import com.lqzc.mcp.dto.OrderDetailResponse;
 import com.lqzc.mcp.dto.TopSalesItem;
+import com.lqzc.mcp.support.McpSupport;
 import com.lqzc.service.InventoryItemService;
+import com.lqzc.service.OrderDetailService;
+import com.lqzc.service.OrderInfoService;
+import lombok.RequiredArgsConstructor;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,18 +26,22 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class MallMcpTools {
 
-    private final InventoryItemService inventoryItemService;
-    private final StringRedisTemplate stringRedisTemplate;
+    private static final int DEFAULT_ORDER_LIMIT = 5;
+    private static final int MAX_ORDER_LIMIT = 20;
 
-    public MallMcpTools(InventoryItemService inventoryItemService, StringRedisTemplate stringRedisTemplate) {
-        this.inventoryItemService = inventoryItemService;
-        this.stringRedisTemplate = stringRedisTemplate;
-    }
+    private final InventoryItemService inventoryItemService;
+    private final OrderInfoService orderInfoService;
+    private final OrderDetailService orderDetailService;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @McpTool(
             name = "getInventoryByModel",
@@ -38,10 +51,7 @@ public class MallMcpTools {
             @McpToolParam(description = "商品型号，例如 TA800-01", required = true)
             String model
     ) {
-        if (model == null || model.isBlank()) {
-            throw new IllegalArgumentException("model 不能为空");
-        }
-        String normalizedModel = model.trim();
+        String normalizedModel = requireText(model, "model");
         InventoryItem item = inventoryItemService.query()
                 .eq("model", normalizedModel)
                 .one();
@@ -50,11 +60,7 @@ public class MallMcpTools {
             throw new IllegalStateException("未找到对应库存型号: " + normalizedModel);
         }
 
-        return InventoryLookupResponse.from(
-                item,
-                categoryLabel(item.getCategory()),
-                surfaceLabel(item.getSurface())
-        );
+        return InventoryLookupResponse.from(item);
     }
 
     @McpTool(
@@ -97,8 +103,8 @@ public class MallMcpTools {
         IPage<MallItemsListRecord> page = new Page<>(pageNo, pageSize);
         IPage<MallItemsListRecord> record = inventoryItemService.getItemsList(
                 page,
-                normalizeBlank(category),
-                normalizeBlank(surface)
+                McpSupport.normalizeBlank(category),
+                McpSupport.normalizeBlank(surface)
         );
 
         MallItemsListResp resp = new MallItemsListResp();
@@ -109,33 +115,133 @@ public class MallMcpTools {
         return resp;
     }
 
-    private static String normalizeBlank(String value) {
-        if (value == null) {
-            return null;
+    @McpTool(
+            name = "getCustomerOrders",
+            description = "根据内部注入的 customerId 查询该客户最近订单列表，支持按状态过滤"
+    )
+    public List<CustomerOrderItem> getCustomerOrders(
+            @McpToolParam(description = "当前对话客户ID，由 FastAPI 运行时上下文注入", required = true)
+            Long customerId,
+            @McpToolParam(description = "返回条数，默认 5，最大 20", required = false)
+            Integer limit,
+            @McpToolParam(description = "订单状态筛选，可选", required = false)
+            Integer status
+    ) {
+        validateCustomerId(customerId);
+
+        int safeLimit = limit == null || limit < 1
+                ? DEFAULT_ORDER_LIMIT
+                : Math.min(limit, MAX_ORDER_LIMIT);
+
+        Page<OrderInfo> page = new Page<>(1, safeLimit);
+        LambdaQueryWrapper<OrderInfo> wrapper = new LambdaQueryWrapper<OrderInfo>()
+                .eq(OrderInfo::getCustomerId, customerId)
+                .eq(status != null, OrderInfo::getOrderStatus, status)
+                .orderByDesc(OrderInfo::getCreateTime);
+
+        List<OrderInfo> orders = orderInfoService.page(page, wrapper).getRecords();
+        return orders.stream()
+                .map(order -> new CustomerOrderItem(
+                        order.getOrderNo(),
+                        order.getOrderStatus(),
+                        CustomerOrderItem.statusLabel(
+                                order.getOrderStatus(),
+                                order.getDispatchStatus(),
+                                order.getCancelReason()
+                        ),
+                        order.getPayableAmount(),
+                        countOrderItems(order.getId()),
+                        McpSupport.formatDateTime(order.getCreateTime())
+                ))
+                .toList();
+    }
+
+    @McpTool(
+            name = "getCustomerOrderDetail",
+            description = "根据内部注入的 customerId 和订单号查询订单详情，返回支付、发货、金额和商品明细"
+    )
+    public OrderDetailResponse getCustomerOrderDetail(
+            @McpToolParam(description = "当前对话客户ID，由 FastAPI 运行时上下文注入", required = true)
+            Long customerId,
+            @McpToolParam(description = "订单号，例如 ORD202604170001", required = true)
+            String orderNo
+    ) {
+        validateCustomerId(customerId);
+        String normalizedOrderNo = requireText(orderNo, "orderNo");
+
+        OrderInfo order = orderInfoService.getOne(new LambdaQueryWrapper<OrderInfo>()
+                .eq(OrderInfo::getCustomerId, customerId)
+                .eq(OrderInfo::getOrderNo, normalizedOrderNo));
+
+        if (order == null) {
+            throw new IllegalStateException("未找到对应订单: " + normalizedOrderNo);
         }
-        String normalized = value.trim();
-        return normalized.isEmpty() ? null : normalized;
+
+        List<OrderDetail> orderDetails = orderDetailService.list(
+                new LambdaQueryWrapper<OrderDetail>().eq(OrderDetail::getOrderId, order.getId())
+        );
+        Map<Long, InventoryItem> itemMap = orderDetails.isEmpty()
+                ? Map.of()
+                : inventoryItemService.listByIds(
+                        orderDetails.stream().map(OrderDetail::getItemId).toList()
+                ).stream().collect(Collectors.toMap(InventoryItem::getId, Function.identity()));
+
+        List<OrderDetailResponse.ItemDetail> items = orderDetails.stream()
+                .map(detail -> {
+                    InventoryItem item = itemMap.get(detail.getItemId());
+                    return new OrderDetailResponse.ItemDetail(
+                            item == null ? null : item.getModel(),
+                            item == null ? null : item.getSpecification(),
+                            detail.getAmount(),
+                            item == null ? null : item.getSellingPrice(),
+                            detail.getSubtotalPrice()
+                    );
+                })
+                .toList();
+
+        return new OrderDetailResponse(
+                order.getOrderNo(),
+                order.getOrderStatus(),
+                OrderDetailResponse.orderStatusLabel(
+                        order.getOrderStatus(),
+                        order.getDispatchStatus(),
+                        order.getCancelReason()
+                ),
+                order.getPayStatus(),
+                OrderDetailResponse.payStatusLabel(order.getPayStatus()),
+                order.getDispatchStatus(),
+                OrderDetailResponse.dispatchStatusLabel(order.getDispatchStatus()),
+                order.getTotalPrice(),
+                order.getPayableAmount(),
+                order.getDiscountAmount(),
+                order.getDeliveryFee(),
+                order.getDeliveryAddress(),
+                order.getPointsUsed(),
+                McpSupport.formatDateTime(order.getPayTime()),
+                McpSupport.formatDateTime(order.getCreateTime()),
+                McpSupport.formatDateTime(order.getReceiveTime()),
+                order.getRemark(),
+                items
+        );
     }
 
-    private static String categoryLabel(Integer category) {
-        return switch (category) {
-            case 1 -> "墙砖";
-            case 2 -> "地砖";
-            case 3 -> "胶";
-            case 4 -> "洁具";
-            default -> "未知";
-        };
+    private int countOrderItems(Long orderId) {
+        return Math.toIntExact(orderDetailService.count(
+                new LambdaQueryWrapper<OrderDetail>().eq(OrderDetail::getOrderId, orderId)
+        ));
     }
 
-    private static String surfaceLabel(Integer surface) {
-        return switch (surface) {
-            case 1 -> "抛光";
-            case 2 -> "哑光";
-            case 3 -> "釉面";
-            case 4 -> "通体大理石";
-            case 5 -> "微晶石";
-            case 6 -> "岩板";
-            default -> "未知";
-        };
+    private static void validateCustomerId(Long customerId) {
+        if (customerId == null || customerId <= 0) {
+            throw new IllegalArgumentException("customerId 非法");
+        }
+    }
+
+    private static String requireText(String value, String fieldName) {
+        String normalized = McpSupport.normalizeBlank(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException(fieldName + " 不能为空");
+        }
+        return normalized;
     }
 }
