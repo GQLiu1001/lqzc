@@ -26,8 +26,11 @@ SCENE_HINTS: dict[str, tuple[str, ...]] = {
     "general": (),
     "product_consult": ("商品", "参数", "规格", "型号", "适用场景"),
     "aftersale_policy": ("售后", "退换货", "退款", "发票", "保修"),
+    "mall_policy": ("优惠券", "支付", "发票", "地址", "规则"),
+    "logistics": ("物流", "配送", "送达", "签收", "运费"),
     "order_query": ("订单", "支付", "收货", "物流"),
     "inventory_query": ("库存", "入库", "出库", "调拨", "仓库"),
+    "inventory_rule": ("库存", "异常", "盘点", "流水", "阈值"),
     "outbound_approval": ("审批", "出库", "放行", "待审批"),
     "shared_policy": ("平台规则", "统一政策", "通用说明"),
 }

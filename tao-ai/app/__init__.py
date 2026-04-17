@@ -1,6 +1,6 @@
 """TAO AI v3 agent runtime package.
 
-The architecture follows ``TAOAIv3.md``:
+The architecture follows ``README.md``:
 FastAPI -> Supervisor -> Mall/Warehouse Agent -> Skill/Tool execution.
 """
 
