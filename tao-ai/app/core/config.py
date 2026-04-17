@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_db: int = 0
+    redis_password: str = ""
 
     milvus_host: str = "localhost"
     milvus_port: int = 19530
