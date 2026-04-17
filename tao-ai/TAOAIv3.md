@@ -160,6 +160,7 @@ agent/
 ├── app/
 │   ├── api/
 │   │   ├── interrupt.py   			# 审批恢复 / decision 提交
+│   │   ├── eval.py                 # /eval/offline/run, /eval/run/{id}, /eval/runs
 │   │   └── chat.py                 # POST /chat
 │   ├── auth/
 │   │   └── auth.py         	    # Bearer Token -> userContext
@@ -169,6 +170,7 @@ agent/
 │   ├── core/
 │   │   ├── runtime_context.py      # request-scoped user/session context
 │   │   ├── config.py               # 环境变量 / 模型 / Redis / PostgreSQL 配置
+│   │   ├── db.py                   # 共享异步 psycopg 连接池 (audit/eval 写入)
 │   │   └── checkpoint.py           # PostgreSQL checkpointer 初始化与工厂
 │   ├── schemas/
 │   │   ├── agent.py                # DomainAgentResult
@@ -206,14 +208,10 @@ agent/
 │   │   ├── judges.py              # rule judge / ollama judge
 │   │   └── dataset_loader.py      # JSONL golden dataset 读取
 │   ├── mcp/
-│   │   ├── registry.py             # MCP server / tool 注册
-│   │   ├── client.py               # MCP 客户端封装
-│   │   └── adapters.py             # MCP -> LangChain Tool 适配
+│   │   └── client.py               # MCP JSON-RPC over HTTP 客户端
 │   └── repositories/
-│       ├── warehouse_repo.py
-│       ├── mall_repo.py
-│       ├── redis_repo.py
-│       ├── milvus_repo.py
+│       ├── redis_repo.py           # auth token 校验 (staff / customer)
+│       ├── milvus_repo.py          # RAG 向量库访问
 │       └── document_repo.py        # 文档元数据 / 版本 / 生效时间 / 来源登记
 ├── skills/
 │   ├── shared/
@@ -2531,11 +2529,11 @@ Eval 结果统一写入 PostgreSQL，供离线回归、失败样本回收和人�
 
 本项目 eval 相关组件约定如下：
 
-- **JSONL golden dataset**：维护离线评测集
-- **本地 eval runner**：执行离线评测与回归测试
-- **Redis**：承接在线抽样评测任务队列
-- **Ollama judge model**：执行回答质量评估
-- **PostgreSQL**：存储评测结果与失败样本
+- **JSONL golden dataset**：维护离线评测集，存放于 `data/eval/*.jsonl`（当前含 `mall_faq_golden.jsonl` / `warehouse_sop_golden.jsonl`）
+- **本地 eval runner**：`app/eval/offline_runner.py` 执行离线评测与回归；`app/eval/online_worker.py` 对接 audit_log 做在线抽样
+- **Ollama judge model**：`app/eval/judges.py` 含 rule_judge (must_include / must_not_include) + llm_judge (correctness / groundedness / permission_safe)
+- **PostgreSQL**：`eval_run` / `eval_sample` / `online_eval_sample` 三张表存储汇总与样本明细
+- **REST 入口**：`POST /eval/offline/run`、`GET /eval/run/{run_id}`、`GET /eval/runs`
 
 ## 6.12 建议的起始验收阈值
 
@@ -2828,44 +2826,21 @@ ai:
 
 ## 7.4 FastAPI 侧的 MCP 接入方式
 
-MCP 相关代码统一收口在：
+MCP 相关代码收口在一个文件：
 
 ```text
 app/mcp/
-├── registry.py
-├── client.py
-└── adapters.py
+└── client.py
 ```
 
-各模块职责如下。
+`app/mcp/client.py` 负责：
 
-### `app/mcp/client.py`
+- 初始化 `httpx.AsyncClient`（复用连接、带全局超时）
+- 封装 MCP JSON-RPC `tools/call` 请求格式
+- 执行工具调用，解析 `result.content[0].text` 为结构化 JSON
+- 统一错误码：`MCP_TIMEOUT / MCP_HTTP_ERROR / MCP_TOOL_ERROR / MCP_INTERNAL_ERROR`
 
-负责：
-
-- 初始化 MCP Client
-- 配置 Java MCP Server 地址
-- 与 `/mcp` 建立连接
-- 执行工具调用
-- 处理底层超时、连接错误、协议异常
-
-### `app/mcp/registry.py`
-
-负责：
-
-- 注册当前可用的 MCP Server
-- 拉取并缓存工具元信息
-- 按域或用途组织工具列表
-- 向 MallAgent / WarehouseAgent 暴露对应工具集
-
-### `app/mcp/adapters.py`
-
-负责：
-
-- 将 MCP 工具适配为 LangChain Tool
-- 统一工具调用签名
-- 处理参数映射与结果标准化
-- 将 MCP 层异常转换为 Agent 可理解的错误结果
+原计划中的 `registry.py`（工具元信息缓存）与 `adapters.py`（MCP→LangChain Tool 适配）已合并到 `app/tools/mall_tools.py` 与 `app/tools/warehouse_tools.py` 内：每个 `@tool` 函数本身即是面向意图的适配器，直接调用 `mcp_client.call_tool(name, args)` 并在函数体内注入 `customerId / operatorUserId / roleId / idempotencyKey` 等运行时字段。原因是：本项目只对接一个 Java MCP Server、工具集合稳定，额外一层 registry/adapter 只会推高复杂度而收益很小。后续如需接入多个 MCP Server 或动态发现工具，再把 registry/adapters 拆出来。
 
 ## 7.5 MCP 与 Agent 的集成关系
 
@@ -3136,3 +3111,144 @@ MCP 调用应纳入统一审计与日志体系。
 基于你当前实际情况，MCP 这一层的目标不是炫技，而是：
 
 **在不破坏现有 Java 业务体系的前提下，把宿主机已有能力标准化接入 FastAPI Agent。**
+
+---
+
+# 附录 A. RAG 文档导入与调用链 trace 日志（待实现 TODO）
+
+> 状态：**尚未实现，等下次继续推进**。本节先把需求、设计、当前勘察结果落档，避免 token 耗尽后丢失。
+
+## A.1 当前 RAG 文档来源（已存在的）
+
+`app/rag/constants.py::default_knowledge_sources()` 配置 7 个 source：
+
+| source name | root 目录 | domain | access_level | 现状 |
+| --- | --- | --- | --- | --- |
+| `mall_manuals` | `/lqzc/src/main/resources/manuals/` | mall | customer | ✅ 有 `保养手册.txt` + `售后指南.txt` |
+| `mall_skills` | `tao-ai/skills/mall/` | mall | customer | ✅ `order_query/` + `product_consult/` |
+| `warehouse_skills` | `tao-ai/skills/warehouse/` | warehouse | staff（`staff/warehouse_manager/admin`） | ✅ `inventory_query/` + `outbound_approval/` |
+| `shared_skills` | `tao-ai/skills/shared/` | shared | public | ✅ `grounded_answer/` + `response_format/` |
+| `knowledge_mall` | `tao-ai/knowledge/mall/` | mall | customer | ⭕ 空（目录未建） |
+| `knowledge_warehouse` | `tao-ai/knowledge/warehouse/` | warehouse | staff | ⭕ 空（目录未建） |
+| `knowledge_shared` | `tao-ai/knowledge/shared/` | shared | public | ⭕ 空（目录未建） |
+
+支持后缀：`.md` / `.markdown` / `.txt`（见 `constants.py::SUPPORTED_DOC_SUFFIXES`）。
+
+scene 推断逻辑（`parser.py::resolve_scene`）：
+- 若 source 配置了 scene 且根目录叫 `manuals`，再看文件名：含"售后" → `aftersale_policy`，含"保养/清洁" → `product_consult`
+- 否则按路径第一段推断
+
+## A.2 Milvus collection 自动创建逻辑
+
+- **Milvus 服务进程**：**不会**自动启，用户需先启动（`docker compose up milvus`），`settings.milvus_host=localhost:19530` 能通即可
+- **Collection `taoai_rag_chunks`**：**会自动创建**
+  - 入口 1：`app/rag/ingest.py::ingest_default_corpus()` → `milvus_repo.index_chunks()` → `_rebuild_collection()`（drop + create + create_index）
+  - 入口 2：每次 `RAGService.search` 都会 `await milvus_repo.index_chunks(...)`，靠 sha1 签名 skip 已索引的批次（`_is_collection_current`）
+  - 签名状态持久化在 `tao-ai/.rag_cache/milvus_sync.json`
+- **Fallback**：Milvus 连不通时 `availability()` 降级，走本地 lexical 召回，系统不崩
+
+## A.3 要实现的 TODO 列表
+
+### Task #5 — 加统一 trace logger 工具
+**目标文件**：新建 `app/core/trace.py`
+
+**职责**：提供 `trace_in(name, **kwargs)` / `trace_out(name, result, elapsed_ms)` / `traced()` 装饰器；输出结构化日志：
+```
+[TRACE]→ mall_rag_search query="瓷砖如何退款" scene="aftersale_policy" user_id=1001
+[TRACE]← mall_rag_search elapsed=342ms hits=3 no_hit=false mode=hybrid
+```
+
+**规则**：
+- 使用 `logging.getLogger("taoai.trace")`
+- 入参/出参太大时只截前 500 字符，防止刷屏
+- 支持同步 + 异步函数
+- 耗时使用 `time.perf_counter()`
+- dict / pydantic model 只打 key 列表 + 关键字段摘要（如 `hits=N`, `score=xx`, `tool=xx`）
+
+### Task #8 — 配置 logging basicConfig
+**目标文件**：`main.py` lifespan 顶部
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logging.getLogger("taoai.trace").setLevel(logging.INFO)
+# httpx/pymilvus 噪音压到 WARNING
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("pymilvus").setLevel(logging.WARNING)
+```
+
+### Task #7 — 给关键链路打 trace 日志
+**埋点清单**（按调用链顺序）：
+
+1. **入口层**
+   - `app/api/chat.py::chat` — 入参 `{session_id, user_id, role, message[:100]}`；出参 `{route, status, tool_calls, elapsed_ms}`
+   - `app/api/interrupt.py::submit_decision` — 入参 `{session_id, decision, tool}`；出参 `{status, elapsed_ms}`
+
+2. **Supervisor 层**
+   - `app/supervisor/service.py::SupervisorService.invoke` — 打 checkpoint ns + thread_id
+   - `app/supervisor/nodes.py::route_node` — 三层路由每一层命中情况 + reason
+   - `app/supervisor/nodes.py::_llm_route` — LLM classifier prompt + 原始输出 + 裁决结果
+
+3. **Agent 层**
+   - `app/agents/mall_agent.py::MallAgent.invoke` — runtime_guard 摘要 + 最终 answer[:200] + tool_calls + skill_used
+   - `app/agents/warehouse_agent/__init__.py::WarehouseAgent.invoke/resume` — 同上 + interrupt 命中情况
+   - subagent（inventory / approval）入口也打
+
+4. **Tool 层**（每个 `@tool` 函数入口+出口）
+   - `app/tools/mall_tools.py`：9 个工具
+   - `app/tools/warehouse_tools.py`：4 个工具
+   - `app/tools/rag_tools.py`：3 个工具
+   - 建议统一用 `@traced` 装饰器包一下，不要一个个手写
+
+5. **RAG 层**
+   - `app/rag/service.py::RAGService.search` — query、rewritten_query、used_filters、各阶段 hit 数（milvus / lexical / merged / reranked）、search_mode、latency_ms
+   - `app/rag/ingest.py::ingest_default_corpus` — force_refresh、解析文档数、chunk 数、milvus 返回
+   - `app/repositories/milvus_repo.py`：
+     - `_rebuild_collection` — embedding_dim、drop old、create new
+     - `_index_chunks_sync` — batch 数、每 batch 上传记录数、总 indexed
+     - `_search_sync` — filter 表达式、dense_limit、原始 hit 数
+
+6. **MCP 层**
+   - `app/mcp/client.py::call_tool` — tool_name、arguments（脱敏）、HTTP status、返回 success/errorCode、elapsed
+
+7. **Audit 层**
+   - `app/audit/service.py::record_audit_event` — 写入结果、冲突 skip 情况
+
+### Task #6 — 新增 /rag/reindex 端点
+**新建文件**：`app/api/rag.py`
+
+**端点**：
+- `POST /rag/reindex` — body `{"force_refresh": true}`，调 `ingest_default_corpus(force_refresh=...)`，返回 documents / chunks / domains / milvus 结果；需 admin 权限（复用 `get_current_user` 依赖 + 角色校验）
+- `GET /rag/summary` — 调 `RAGService.corpus_summary()` 返回当前索引概况 + milvus 可用性
+
+**main.py 改动**：新增 `from app.api.rag import router as rag_router`；`app.include_router(rag_router)`
+
+**权限**：只允许 `user_type=staff` 且 `role in ("admin",)` 调用（reindex 对系统侧影响大）
+
+### Task #9 — TAOAIv3.md 加入导入文档流程
+写一节《§12 如何导入新文档到 RAG》，覆盖：
+
+1. **三种放置位置**（按 domain/权限选）
+   - 商城客户可见：`src/main/resources/manuals/` 或 `tao-ai/knowledge/mall/`
+   - 仓储员工可见：`tao-ai/knowledge/warehouse/`（带 role_allowlist）
+   - 共享通用规则：`tao-ai/knowledge/shared/`
+2. **两种触发重建**
+   - CLI：`python -m app.rag.ingest`（force_refresh=True）
+   - REST：`curl -X POST http://localhost:8000/rag/reindex -H "Authorization: Bearer <admin_token>" -d '{"force_refresh": true}'`
+3. **控制台 trace 日志样例**（展示一次典型问答的完整链路输出）
+4. **scene 识别规则**（文件名关键词 → scene）
+5. **验证步骤**：`GET /rag/summary` 看 chunk 数变化；发 `/chat` 问一个新文档里才有的问题，确认命中
+
+## A.4 恢复工作的入口
+
+下次继续时：
+1. `TaskList` 能看到 Task #5–#9 仍为 pending
+2. 从 **#5 trace.py → #8 logging → #7 埋点 → #6 端点 → #9 文档** 顺序推进
+3. 已勘察完的代码都不需要重读，直接按 A.3 清单改
+4. 改完最好跑一次 `python -c "from main import app"` 验证 import 不炸，再跑一次 `python -m app.rag.ingest` 看 trace 日志是否齐全

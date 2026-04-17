@@ -1,14 +1,6 @@
-"""Repository package for Redis, Milvus, and domain persistence adapters."""
+"""Repository package.
 
-from . import document_repo, mall_repo, milvus_repo, redis_repo, warehouse_repo
-from .redis_repo import close_redis, get_redis
-
-__all__ = [
-    "close_redis",
-    "document_repo",
-    "get_redis",
-    "mall_repo",
-    "milvus_repo",
-    "redis_repo",
-    "warehouse_repo",
-]
+Submodules are imported on demand (`from app.repositories.redis_repo import ...`)
+rather than eagerly, because `document_repo` depends on `app.rag.*` and eager
+loading here triggers a circular import through `rag.filters`.
+"""

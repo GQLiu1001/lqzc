@@ -1,5 +1,5 @@
-"""MCP integration package for server registry, clients, and tool adapters."""
+"""MCP integration package — HTTP/JSON-RPC client for Java MCP Server."""
 
-from . import adapters, client, registry
+from . import client
 
-__all__ = ["adapters", "client", "registry"]
+__all__ = ["client"]
