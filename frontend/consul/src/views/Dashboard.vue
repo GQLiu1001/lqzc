@@ -159,6 +159,11 @@ onUnmounted(() => {
             </el-menu-item>
           </el-sub-menu>
 
+          <el-menu-item index="/dashboard/ai/workbench">
+            <el-icon><Service /></el-icon>
+            <template #title>AI 工作台</template>
+          </el-menu-item>
+
           <!-- 客户管理 -->
           <el-sub-menu index="6">
             <template #title>

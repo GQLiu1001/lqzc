@@ -1,4 +1,5 @@
 // api/order.ts
+import type { AxiosResponse } from "axios";
 import axios from "@/utils/axios";
 import type {
     ApiResponse,
@@ -69,7 +70,7 @@ export interface AvailableCoupon {
     usable: boolean;
 }
 
-export const getAvailableCoupons = (customerPhone: string, orderAmount?: number): Promise<ApiResponse<AvailableCoupon[]>> => {
+export const getAvailableCoupons = (customerPhone: string, orderAmount?: number): Promise<AxiosResponse<ApiResponse<AvailableCoupon[]>>> => {
     const params: any = { customerPhone };
     if (orderAmount !== undefined) {
         params.orderAmount = orderAmount;

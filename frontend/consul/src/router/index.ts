@@ -43,6 +43,11 @@ const router = createRouter({
           name: 'welcome',
           component: () => import('@/views/Welcome.vue'),
         },
+        {
+          path: 'ai/workbench',
+          name: 'ai-workbench',
+          component: () => import('@/views/ai/AiWorkbench.vue'),
+        },
         // 仓库管理
         {
           path: 'warehouse/list', // 统一小写连字符

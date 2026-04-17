@@ -4,23 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ReactMarkdown from "react-markdown";
+import { getCustomerToken } from "@/lib/api";
 
 interface Message {
   id: string;
   content: string;
   isUser: boolean;
   timestamp: Date;
+  route?: string | null;
+  status?: string;
+  toolCalls?: string[];
 }
 
 interface TaoChatResponse {
-  session_id: string;
-  reply: string;
-  steps_used: number;
-  tool_events: Array<{
-    tool_name: string;
-    arguments: Record<string, unknown>;
-    result_preview: string;
-  }>;
+  code: number;
+  message: string;
+  data: {
+    sessionId: string;
+    route?: string | null;
+    answer?: string | null;
+    toolCalls?: string[];
+    status: string;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  };
 }
 
 const AIAssistant = () => {
@@ -28,11 +35,9 @@ const AIAssistant = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 循环提示语
   const tips = [
@@ -77,7 +82,22 @@ const AIAssistant = () => {
 
   // 发送消息
   const sendMessage = async () => {
-    if (!inputValue.trim() || isLoading || isUploading) return;
+    if (!inputValue.trim() || isLoading) return;
+
+    const token = getCustomerToken();
+    if (!token) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: generateId(),
+          content: "请先登录商城账号，再使用智能客服为您查询订单、售后和商品信息。",
+          isUser: false,
+          timestamp: new Date(),
+          status: "forbidden",
+        }
+      ]);
+      return;
+    }
 
     const userMessage: Message = {
       id: generateId(),
@@ -114,10 +134,12 @@ const AIAssistant = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: userMessage.content,
-          session_id: sessionId,
+          sessionId,
+          messageId: userMessage.id,
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -126,11 +148,23 @@ const AIAssistant = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = (await response.json()) as TaoChatResponse;
-      const reply = result.reply?.trim() || "抱歉，我暂时没有可用回复，请稍后再试。";
+      const data = result.data;
+      if (data?.sessionId) {
+        localStorage.setItem('ai_chat_session_id', data.sessionId);
+      }
+      const reply = (data?.answer || data?.errorMessage || "抱歉，我暂时没有可用回复，请稍后再试。").trim();
 
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === aiMessageId ? { ...msg, content: reply } : msg
+          msg.id === aiMessageId
+            ? {
+                ...msg,
+                content: reply,
+                route: data?.route ?? null,
+                status: data?.status ?? "success",
+                toolCalls: data?.toolCalls ?? [],
+              }
+            : msg
         )
       );
       setIsLoading(false);
@@ -148,67 +182,9 @@ const AIAssistant = () => {
     }
   };
 
-  // 上传文件（Demo: 文本文件）
-  const handlePickFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-
-    setIsUploading(true);
-    const sessionId = await getSessionId();
-
-    for (const file of files) {
-      const loadingMessageId = generateId();
-      setMessages(prev => [
-        ...prev,
-        {
-          id: loadingMessageId,
-          content: `正在上传《${file.name}》...`,
-          isUser: false,
-          timestamp: new Date()
-        }
-      ]);
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("session_id", sessionId);
-
-        const response = await fetch("/pyapi/files/upload", {
-          method: "POST",
-          body: formData
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        const successText = `已上传《${file.name}》，已切片 ${result.chunk_count ?? 0} 段。现在可以直接问我这份文档的内容了。`;
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === loadingMessageId ? { ...msg, content: successText } : msg
-          )
-        );
-      } catch (error) {
-        console.error("文件上传失败:", error);
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === loadingMessageId
-              ? { ...msg, content: `《${file.name}》上传失败，请稍后重试。` }
-              : msg
-          )
-        );
-      }
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    setIsUploading(false);
+  const handleNewConversation = () => {
+    localStorage.removeItem('ai_chat_session_id');
+    setMessages([]);
   };
 
   // 处理Enter键发送
@@ -286,6 +262,25 @@ const AIAssistant = () => {
                           </div>
                         )}
                       </div>
+                      {!message.isUser && (message.route || message.status || (message.toolCalls && message.toolCalls.length > 0)) && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {message.route && (
+                            <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-slate-700">
+                              路由: {message.route}
+                            </span>
+                          )}
+                          {message.status && (
+                            <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-slate-700">
+                              状态: {message.status}
+                            </span>
+                          )}
+                          {message.toolCalls && message.toolCalls.length > 0 && (
+                            <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-slate-700">
+                              工具: {message.toolCalls.join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -296,21 +291,13 @@ const AIAssistant = () => {
           {/* 输入区域 */}
           <div className="p-4 border-t border-gray-200 flex-shrink-0">
             <div className="flex space-x-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".txt,.md,.log,text/plain"
-                multiple
-                className="hidden"
-                onChange={handleFileChange}
-              />
               <Button
-                onClick={handlePickFile}
-                disabled={isLoading || isUploading}
+                onClick={handleNewConversation}
+                disabled={isLoading}
                 size="icon"
                 variant="outline"
                 className="flex-shrink-0"
-                title="上传文本文件"
+                title="开始新会话"
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -318,13 +305,13 @@ const AIAssistant = () => {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="输入您的问题..."
-                disabled={isLoading || isUploading}
+                placeholder={getCustomerToken() ? "输入您的问题..." : "登录后可使用智能客服"}
+                disabled={isLoading}
                 className="flex-1"
               />
               <Button
                 onClick={sendMessage}
-                disabled={!inputValue.trim() || isLoading || isUploading}
+                disabled={!inputValue.trim() || isLoading}
                 size="icon"
                 className="bg-blue-600 hover:bg-blue-700 flex-shrink-0"
               >
