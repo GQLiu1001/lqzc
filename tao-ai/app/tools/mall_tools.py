@@ -1,0 +1,140 @@
+"""Mall domain tools — narrow, intent-oriented tools for the MallAgent.
+
+All tools that touch user-scoped data read identity from runtime context
+instead of accepting user IDs as parameters. This prevents the model from
+querying across users.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from langchain_core.tools import tool
+
+from app.core.runtime_context import get_user_context
+from app.mcp import client as mcp_client
+
+logger = logging.getLogger(__name__)
+
+
+# ── 订单类工具 ─────────────────────────────────────────────────────────
+
+@tool
+async def my_order_query(limit: int = 5) -> dict:
+    """查询当前登录用户最近的订单列表，不允许跨用户查询。"""
+    ctx = get_user_context()
+    if ctx is None:
+        return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
+    # MCP 暂未暴露按用户查询订单的工具，先通过商品列表做降级
+    # 后续 Java 端补充 getMyOrders MCP 工具后可直接替换
+    return {
+        "success": False,
+        "errorCode": "NOT_IMPLEMENTED",
+        "message": f"当前用户 (id={ctx.user_id}) 的订单查询工具尚未接入，请联系管理员",
+    }
+
+
+@tool
+async def order_detail_query(order_no: str) -> dict:
+    """查询当前登录用户指定订单的详情、状态、金额、支付与发货信息。"""
+    ctx = get_user_context()
+    if ctx is None:
+        return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
+    if not order_no or not order_no.strip():
+        return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供订单编号"}
+    return {
+        "success": False,
+        "errorCode": "NOT_IMPLEMENTED",
+        "message": f"订单 {order_no} 的详情查询工具尚未接入",
+    }
+
+
+@tool
+async def logistics_trace_query(order_no: str) -> dict:
+    """查询当前登录用户指定订单的物流轨迹。"""
+    ctx = get_user_context()
+    if ctx is None:
+        return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
+    if not order_no or not order_no.strip():
+        return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供订单编号"}
+    return {
+        "success": False,
+        "errorCode": "NOT_IMPLEMENTED",
+        "message": f"订单 {order_no} 的物流查询工具尚未接入",
+    }
+
+
+# ── 商品类工具（通过 MCP 调用 Java 端已有能力）────────────────────────
+
+@tool
+async def product_consult_query(model: str | None = None, question: str = "") -> dict:
+    """查询商品基础信息、卖点、适用场景、售后规则等。
+    可传入商品型号查询库存详情，也可传入自然语言问题做咨询。
+    """
+    if model and model.strip():
+        result = await mcp_client.call_tool("getInventoryByModel", {"model": model.strip()})
+        return result
+    if question.strip():
+        return {
+            "success": True,
+            "hint": "商品咨询类问题建议使用 mall_rag_search 从知识库检索",
+            "question": question,
+        }
+    return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供商品型号或咨询问题"}
+
+
+@tool
+async def get_top_sales() -> dict:
+    """查询商城热销榜前五商品，返回商品型号和销量。"""
+    return await mcp_client.call_tool("getTopSales", {})
+
+
+@tool
+async def search_inventory(
+    current: int = 1,
+    size: int = 10,
+    category: str | None = None,
+    surface: str | None = None,
+) -> dict:
+    """分页查询可售库存商品列表，支持按类别和表面类型筛选。
+    适用于"有什么货""有哪些可售瓷砖"这类问题。
+    """
+    args: dict = {"current": current, "size": size}
+    if category:
+        args["category"] = category
+    if surface:
+        args["surface"] = surface
+    return await mcp_client.call_tool("searchInventory", args)
+
+
+# ── 售后规则类工具 ──────────────────────────────────────────────────
+
+@tool
+async def aftersale_policy_query(question: str) -> dict:
+    """查询售后、退换货、保修、发票等商城规则。
+    底层走 RAG 知识库检索。
+    """
+    if not question or not question.strip():
+        return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供售后相关问题"}
+    # 委托给 RAG 服务
+    from app.tools.rag_tools import mall_rag_search
+
+    return await mall_rag_search.ainvoke({"query": question, "scene": "aftersale_policy"})
+
+
+# ── RAG 检索工具 ────────────────────────────────────────────────────
+
+@tool
+async def mall_rag_search(query: str, scene: str = "general") -> dict:
+    """从商城知识库中检索商品 FAQ、运营规则、售后说明。"""
+    if not query or not query.strip():
+        return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供检索问题"}
+    # TODO: wire to RAGService.search() once RAG layer is implemented
+    return {
+        "success": False,
+        "errorCode": "NOT_IMPLEMENTED",
+        "no_hit": True,
+        "message": "商城知识库检索尚未接入",
+        "query": query,
+        "scene": scene,
+    }

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.auth.auth import get_current_user
-from app.schemas.chat import ChatResponse, ChatResponseData, InterruptDecisionRequest
+from app.schemas.chat import ChatResponse, InterruptDecisionRequest
 from app.schemas.user import UserContext
+from app.supervisor.service import SupervisorService
 
 router = APIRouter()
 
@@ -14,7 +15,7 @@ async def submit_decision(
     body: InterruptDecisionRequest,
     request: Request,
     user_ctx: UserContext = Depends(get_current_user),
-):
+) -> ChatResponse:
     if user_ctx.role not in ("admin",):
         raise HTTPException(
             status_code=403,
@@ -27,19 +28,7 @@ async def submit_decision(
             detail=f"decision 必须为 {_ALLOWED_DECISIONS} 之一",
         )
 
-    checkpointer = request.app.state.checkpointer  # noqa: F841
-
-    # TODO: resume interrupted graph once Supervisor is implemented
-    # from app.supervisor.service import SupervisorService
-    # svc = SupervisorService(checkpointer)
-    # result = await svc.resume(body.session_id, body.decision, body.tool, body.comment, user_ctx)
-    # return ChatResponse(data=ChatResponseData(...))
-
-    return ChatResponse(
-        data=ChatResponseData(
-            sessionId=body.session_id,
-            route="warehouse",
-            answer=f"审批决定已提交: {body.decision}",
-            status="success",
-        ),
+    svc = SupervisorService(request.app.state.checkpointer)
+    return await svc.resume(
+        body.session_id, body.decision, body.tool, body.comment, user_ctx,
     )

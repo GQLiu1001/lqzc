@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.chat import router as chat_router
 from app.api.interrupt import router as interrupt_router
 from app.core.checkpoint import create_checkpointer
+from app.mcp.client import close_mcp_client
 from app.repositories.redis_repo import close_redis
 
 
@@ -13,6 +14,7 @@ async def lifespan(app: FastAPI):
     async with create_checkpointer() as checkpointer:
         app.state.checkpointer = checkpointer
         yield
+    await close_mcp_client()
     await close_redis()
 
 
