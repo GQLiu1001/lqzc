@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from langchain_ollama import ChatOllama
 
+from app.core.runtime_context import set_session_id, set_user_context
 from app.agents.mall_agent import MallAgent
 from app.agents.warehouse_agent import WarehouseAgent
 from app.core.config import settings
@@ -80,15 +81,65 @@ class SupervisorService:
         decision: str,
         tool: str,
         comment: str | None,
-        user_context: UserContext,
     ) -> ChatResponse:
         """Resume an interrupted graph (approval flow)."""
-        # TODO: implement real interrupt resume via LangGraph Command
+        original_user_context = await self._load_original_user_context(session_id)
+        if original_user_context is None:
+            return ChatResponse(
+                code=404,
+                message="not_found",
+                data=ChatResponseData(
+                    sessionId=session_id,
+                    route="warehouse",
+                    answer="未找到原始会话上下文，无法恢复审批流程。",
+                    status="error",
+                    errorCode="SESSION_CONTEXT_NOT_FOUND",
+                    errorMessage=f"sessionId={session_id}",
+                ),
+            )
+
+        set_user_context(original_user_context)
+        set_session_id(session_id)
+
+        result = await self._warehouse_agent.resume(
+            session_id=session_id,
+            decision=decision,
+            tool=tool,
+            comment=comment,
+        )
+
+        code = 200
+        message = "success"
+        if result.status == "error":
+            code = 400
+            message = "error"
+
         return ChatResponse(
+            code=code,
+            message=message,
             data=ChatResponseData(
                 sessionId=session_id,
                 route="warehouse",
-                answer=f"审批决定已提交: {decision}",
-                status="success",
+                answer=result.answer,
+                toolCalls=result.tool_calls,
+                status=result.status,
+                interrupt=result.interrupt,
+                errorCode=result.error_code,
+                errorMessage=result.error_message,
             ),
         )
+
+    async def _load_original_user_context(self, session_id: str) -> UserContext | None:
+        snapshot = await self._graph.aget_state(
+            {
+                "configurable": {
+                    "thread_id": session_id,
+                    "checkpoint_ns": "supervisor",
+                },
+            }
+        )
+        values = snapshot.values if isinstance(snapshot.values, dict) else {}
+        raw_user_context = values.get("user_context")
+        if not raw_user_context:
+            return None
+        return UserContext.model_validate(raw_user_context)

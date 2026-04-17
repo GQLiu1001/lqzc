@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from deepagents.middleware.subagents import SubAgent
 
+from app.tools.rag_tools import shared_policy_rag_search, warehouse_rag_search
 from app.tools.warehouse_tools import approval_status_query, outbound_apply
 
 
@@ -28,11 +29,12 @@ def build_approval_subagent() -> SubAgent:
    - 此工具会触发审批中断，等待管理员 approve / reject
 2. 查审批状态 → approval_status_query(approval_id)
    - 返回 pending / approved / rejected
+3. 解释审批依据、审批规范时，可调用 warehouse_rag_search 或 shared_policy_rag_search
 
 回答格式：
 - 审批提交后告知审批单号和当前状态
 - 审批查询时用中文状态（待审批/已通过/已拒绝）""",
-        tools=[outbound_apply, approval_status_query],
+        tools=[outbound_apply, approval_status_query, warehouse_rag_search, shared_policy_rag_search],
         skills=[
             "/skills/shared/response_format/",
             "/skills/warehouse/outbound_approval/",

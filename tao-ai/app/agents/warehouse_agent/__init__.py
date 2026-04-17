@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.types import Command, Interrupt
 
 from app.agents.warehouse_agent.approval_subagent import build_approval_subagent
 from app.agents.warehouse_agent.inventory_subagent import build_inventory_subagent
@@ -107,6 +108,77 @@ class WarehouseAgent:
 
         return self._normalize_result(result)
 
+    async def resume(
+        self,
+        session_id: str,
+        decision: str,
+        tool: str,
+        comment: str | None,
+    ) -> DomainAgentResult:
+        pending_interrupts = await self.get_pending_interrupts(session_id)
+        if not pending_interrupts:
+            return DomainAgentResult(
+                route="warehouse",
+                answer="当前会话没有待处理的审批中断。",
+                status="error",
+                error_code="NO_PENDING_INTERRUPT",
+                error_message="warehouse graph has no pending interrupt",
+            )
+
+        if len(pending_interrupts) != 1:
+            return DomainAgentResult(
+                route="warehouse",
+                answer="当前会话存在多个待处理审批动作，暂不支持一次性恢复。",
+                status="error",
+                error_code="MULTIPLE_PENDING_INTERRUPTS",
+                error_message=str(pending_interrupts),
+            )
+
+        pending = pending_interrupts[0]
+        interrupt_tool = pending.get("tool")
+        if tool and interrupt_tool and tool != interrupt_tool:
+            return DomainAgentResult(
+                route="warehouse",
+                answer=f"当前待审批工具为 {interrupt_tool}，与请求中的 {tool} 不一致。",
+                status="error",
+                error_code="INTERRUPT_TOOL_MISMATCH",
+                error_message=f"expected={interrupt_tool}, actual={tool}",
+            )
+
+        decision_payload = _build_hitl_decision(decision, pending, comment)
+        try:
+            result = await self._agent.ainvoke(
+                Command(resume={"decisions": [decision_payload]}),
+                config={
+                    "configurable": {
+                        "thread_id": session_id,
+                        "checkpoint_ns": "warehouse",
+                    },
+                },
+            )
+        except Exception:
+            logger.exception("WarehouseAgent resume failed for session %s", session_id)
+            return DomainAgentResult(
+                route="warehouse",
+                answer="审批恢复执行失败，请稍后重试。",
+                status="error",
+                error_code="WAREHOUSE_RESUME_ERROR",
+                error_message="WarehouseAgent resume exception",
+            )
+
+        return self._normalize_result(result)
+
+    async def get_pending_interrupts(self, session_id: str) -> list[dict]:
+        snapshot = await self._agent.aget_state(
+            {
+                "configurable": {
+                    "thread_id": session_id,
+                    "checkpoint_ns": "warehouse",
+                },
+            }
+        )
+        return _serialize_interrupts(snapshot.interrupts)
+
     # ── private helpers ───────────────────────────────────────────────
 
     @staticmethod
@@ -134,15 +206,15 @@ class WarehouseAgent:
             answer = last.content if hasattr(last, "content") else str(last)
 
         # Check for interrupt (approval flow triggered)
-        interrupt = result.get("__interrupt__") or result.get("interrupt")
+        interrupt = _serialize_interrupts(result.get("__interrupt__") or result.get("interrupt"))
         if interrupt:
             return DomainAgentResult(
                 route="warehouse",
-                answer="该操作涉及仓储审批，当前已进入待审批状态。",
+                answer="该操作需要审批人确认；确认通过后，系统才会正式提交出库审批申请。",
                 tool_calls=WarehouseAgent._extract_tool_calls(result),
                 skill_used=WarehouseAgent._extract_skills(result),
                 status="need_approval",
-                interrupt=interrupt if isinstance(interrupt, dict) else {"raw": str(interrupt)},
+                interrupt=interrupt[0] if len(interrupt) == 1 else {"items": interrupt},
             )
 
         tool_calls = WarehouseAgent._extract_tool_calls(result)
@@ -177,3 +249,51 @@ class WarehouseAgent:
                     if tag in content and tag not in skills:
                         skills.append(tag)
         return skills
+
+
+def _serialize_interrupts(raw_interrupts) -> list[dict]:
+    if raw_interrupts is None:
+        return []
+
+    if isinstance(raw_interrupts, Interrupt):
+        interrupts = [raw_interrupts]
+    elif isinstance(raw_interrupts, (list, tuple)):
+        interrupts = [item for item in raw_interrupts if isinstance(item, Interrupt)]
+    else:
+        return [{"raw": str(raw_interrupts)}]
+
+    serialized: list[dict] = []
+    for interrupt in interrupts:
+        payload = interrupt.value if isinstance(interrupt.value, dict) else {}
+        action_requests = payload.get("action_requests") or []
+        review_configs = payload.get("review_configs") or []
+
+        item: dict = {
+            "id": interrupt.id,
+            "raw": interrupt.value if not payload else None,
+        }
+
+        if action_requests:
+            action = action_requests[0]
+            item["tool"] = action.get("name")
+            item["args"] = action.get("args", {})
+            item["description"] = action.get("description")
+        if review_configs:
+            review = review_configs[0]
+            item["allowedDecisions"] = review.get("allowed_decisions", [])
+
+        serialized.append({key: value for key, value in item.items() if value is not None})
+
+    return serialized
+
+
+def _build_hitl_decision(decision: str, pending_interrupt: dict, comment: str | None) -> dict:
+    if decision == "approve":
+        return {"type": "approve"}
+    if decision == "reject":
+        tool = pending_interrupt.get("tool") or "当前操作"
+        return {
+            "type": "reject",
+            "message": (comment or f"{tool} 未获审批通过，已拒绝执行。").strip(),
+        }
+    raise ValueError(f"Unsupported decision: {decision}")

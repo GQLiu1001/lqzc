@@ -17,6 +17,7 @@ from deepagents.backends import FilesystemBackend
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.schemas.agent import DomainAgentResult
+from app.tools.rag_tools import shared_policy_rag_search
 from app.tools.mall_tools import (
     aftersale_policy_query,
     get_top_sales,
@@ -55,6 +56,7 @@ _MALL_TOOLS = [
     aftersale_policy_query,
     logistics_trace_query,
     mall_rag_search,
+    shared_policy_rag_search,
     get_top_sales,
     search_inventory,
 ]

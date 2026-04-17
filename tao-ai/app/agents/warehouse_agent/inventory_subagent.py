@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from deepagents.middleware.subagents import SubAgent
 
+from app.tools.rag_tools import shared_policy_rag_search, warehouse_rag_search
 from app.tools.warehouse_tools import inventory_log_query, inventory_query
 
 
@@ -24,9 +25,10 @@ def build_inventory_subagent() -> SubAgent:
 工具使用指引：
 1. 查某仓某商品库存 → inventory_query(warehouse_id, item_id)
 2. 查近 N 天出入库流水 → inventory_log_query(warehouse_id, item_id, days)
-3. 判断库存异常时，先查当前库存再查流水做对比分析
-4. 查询失败时如实告知，不要编造数据""",
-        tools=[inventory_query, inventory_log_query],
+3. 需要解释库存规则、异常判定标准时，可调用 warehouse_rag_search 或 shared_policy_rag_search
+4. 判断库存异常时，先查当前库存再查流水做对比分析
+5. 查询失败时如实告知，不要编造数据""",
+        tools=[inventory_query, inventory_log_query, warehouse_rag_search, shared_policy_rag_search],
         skills=[
             "/skills/shared/response_format/",
             "/skills/warehouse/inventory_query/",

@@ -96,6 +96,23 @@ public final class McpSupport {
         };
     }
 
+    public static String driverWorkStatusLabel(Integer workStatus) {
+        return switch (workStatus) {
+            case 0 -> "空闲";
+            case 1 -> "忙碌";
+            case 2 -> "离线";
+            default -> "未知";
+        };
+    }
+
+    public static String maskPhone(String phone) {
+        String normalized = normalizeBlank(phone);
+        if (normalized == null || normalized.length() < 7) {
+            return normalized;
+        }
+        return normalized.substring(0, 3) + "****" + normalized.substring(normalized.length() - 4);
+    }
+
     private static boolean isCancelled(Integer dispatchStatus, String cancelReason) {
         if (cancelReason != null && !cancelReason.isBlank()) {
             return true;

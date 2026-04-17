@@ -13,6 +13,7 @@ from langchain_core.tools import tool
 
 from app.core.runtime_context import get_user_context
 from app.mcp import client as mcp_client
+from app.tools import rag_tools
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +26,10 @@ async def my_order_query(limit: int = 5) -> dict:
     ctx = get_user_context()
     if ctx is None:
         return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
-    # MCP 暂未暴露按用户查询订单的工具，先通过商品列表做降级
-    # 后续 Java 端补充 getMyOrders MCP 工具后可直接替换
-    return {
-        "success": False,
-        "errorCode": "NOT_IMPLEMENTED",
-        "message": f"当前用户 (id={ctx.user_id}) 的订单查询工具尚未接入，请联系管理员",
-    }
+    return await mcp_client.call_tool(
+        "getCustomerOrders",
+        {"customerId": ctx.user_id, "limit": max(1, min(limit, 20))},
+    )
 
 
 @tool
@@ -42,11 +40,10 @@ async def order_detail_query(order_no: str) -> dict:
         return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
     if not order_no or not order_no.strip():
         return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供订单编号"}
-    return {
-        "success": False,
-        "errorCode": "NOT_IMPLEMENTED",
-        "message": f"订单 {order_no} 的详情查询工具尚未接入",
-    }
+    return await mcp_client.call_tool(
+        "getCustomerOrderDetail",
+        {"customerId": ctx.user_id, "orderNo": order_no.strip()},
+    )
 
 
 @tool
@@ -57,11 +54,10 @@ async def logistics_trace_query(order_no: str) -> dict:
         return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
     if not order_no or not order_no.strip():
         return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供订单编号"}
-    return {
-        "success": False,
-        "errorCode": "NOT_IMPLEMENTED",
-        "message": f"订单 {order_no} 的物流查询工具尚未接入",
-    }
+    return await mcp_client.call_tool(
+        "getCustomerLogisticsTrace",
+        {"customerId": ctx.user_id, "orderNo": order_no.strip()},
+    )
 
 
 # ── 商品类工具（通过 MCP 调用 Java 端已有能力）────────────────────────
@@ -75,11 +71,7 @@ async def product_consult_query(model: str | None = None, question: str = "") ->
         result = await mcp_client.call_tool("getInventoryByModel", {"model": model.strip()})
         return result
     if question.strip():
-        return {
-            "success": True,
-            "hint": "商品咨询类问题建议使用 mall_rag_search 从知识库检索",
-            "question": question,
-        }
+        return await rag_tools.mall_rag_search.ainvoke({"query": question, "scene": "product_consult"})
     return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供商品型号或咨询问题"}
 
 
@@ -116,10 +108,7 @@ async def aftersale_policy_query(question: str) -> dict:
     """
     if not question or not question.strip():
         return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供售后相关问题"}
-    # 委托给 RAG 服务
-    from app.tools.rag_tools import mall_rag_search
-
-    return await mall_rag_search.ainvoke({"query": question, "scene": "aftersale_policy"})
+    return await rag_tools.mall_rag_search.ainvoke({"query": question, "scene": "aftersale_policy"})
 
 
 # ── RAG 检索工具 ────────────────────────────────────────────────────
@@ -127,14 +116,4 @@ async def aftersale_policy_query(question: str) -> dict:
 @tool
 async def mall_rag_search(query: str, scene: str = "general") -> dict:
     """从商城知识库中检索商品 FAQ、运营规则、售后说明。"""
-    if not query or not query.strip():
-        return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供检索问题"}
-    # TODO: wire to RAGService.search() once RAG layer is implemented
-    return {
-        "success": False,
-        "errorCode": "NOT_IMPLEMENTED",
-        "no_hit": True,
-        "message": "商城知识库检索尚未接入",
-        "query": query,
-        "scene": scene,
-    }
+    return await rag_tools.mall_rag_search.ainvoke({"query": query, "scene": scene})

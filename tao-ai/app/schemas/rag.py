@@ -20,11 +20,12 @@ class RetrievedChunk(BaseModel):
 
 class RAGSearchRequest(BaseModel):
     domain: str
-    scene: str
+    scene: str = "general"
     query: str
     top_k: int = 8
     user_context: dict
     extra_filters: dict | None = None
+    session_id: str | None = None
 
 
 class RAGSearchResult(BaseModel):
@@ -34,3 +35,9 @@ class RAGSearchResult(BaseModel):
     hits: list[RetrievedChunk] = Field(default_factory=list)
     used_filters: dict = Field(default_factory=dict)
     no_hit: bool = False
+    context_text: str = ""
+    retrieved_docs_count: int = 0
+    search_mode: str = "local-lexical"
+    message: str | None = None
+    error_code: str | None = None
+    latency_ms: int | None = None

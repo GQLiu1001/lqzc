@@ -30,5 +30,5 @@ async def submit_decision(
 
     svc = SupervisorService(request.app.state.checkpointer)
     return await svc.resume(
-        body.session_id, body.decision, body.tool, body.comment, user_ctx,
+        body.session_id, body.decision, body.tool, body.comment,
     )

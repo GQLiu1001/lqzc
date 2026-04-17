@@ -6,7 +6,89 @@
 >
 > 项目技术栈：**LangChain v1.2.0 + LangGraph v1.1 + Deep Agents v0.5.0 + Milvus + PostgreSQL + Redis + Ollama + FastAPI**
 >
+> 注意 PostgreSQL、Ollama在后台 Milvus、redis 在docker
+>
 > 注意我会把 langchain、langgraph、deepagents 的官方 github 文件放入根目录供参考。
+
+```yaml
+version: '3.5'
+
+services:
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.25
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  standalone:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.6.13
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      MINIO_REGION: us-east-1
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ./volumes/milvus:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - etcd
+      - minio
+
+  attu:
+    container_name: attu
+    image: zilliz/attu:v2.6.3
+    ports:
+      - "8000:3000"
+    environment:
+      MILVUS_URL: standalone:19530
+    depends_on:
+      - standalone
+
+networks:
+  default:
+    name: milvus
+
+```
 
 # agent 项目时序图
 
@@ -387,11 +469,13 @@ Authorization 请求头：
   "data": {
     "sessionId": "chat-session-003",
     "route": "warehouse",
-    "answer": "该操作涉及出库审批，当前已进入待审批状态。",
+    "answer": "该操作需要审批人确认；确认通过后，系统才会正式提交出库审批申请。",
     "toolCalls": ["outbound_apply"],
     "status": "need_approval",
     "interrupt": {
+      "id": "interrupt-warehouse-outbound-001",
       "tool": "outbound_apply",
+      "args": {"warehouse_id": "2", "item_id": "4", "qty": 30, "reason": "客户急单"},
       "allowedDecisions": ["approve", "reject"]
     }
   }
@@ -425,7 +509,8 @@ POST /chat/interrupt/decision
 ```
 
 - 只有有权限的审批人 admin 才能提交 `approve / reject`
-- 恢复执行时继续使用同一个 `thread_id=sessionId` 和 `checkpoint_ns="warehouse"`
+- 恢复执行继续使用同一个 `thread_id=sessionId` 和 `checkpoint_ns="warehouse"`
+- 恢复时沿用原发起人的运行时上下文去继续执行被中断的工具调用，不会错误切换成审批人的上下文
 
 # 3. Supervisor 的实现
 
@@ -482,6 +567,7 @@ Supervisor 不负责：
 
 - 前端透传的 `sessionId` 作为 LangGraph 的 `thread_id`
 - Supervisor、MallAgent、WarehouseAgent 共用同一个 **PostgreSQL checkpoint 后端**
+- `/chat/interrupt/decision` 通过 LangGraph `Command(resume=...)` 恢复 warehouse graph
 - 各图调用时统一使用 `thread_id=sessionId`
 - 建议增加不同的 `checkpoint_ns`，避免 Supervisor 与领域 Agent 在同一后端中状态互相污染：
   - `supervisor`
@@ -976,9 +1062,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.tools.mall_tools import (
     my_order_query,
     order_detail_query,
+    logistics_trace_query,
     product_consult_query,
     aftersale_policy_query,
-    logistics_trace_query,
     mall_rag_search,
 )
 
@@ -1002,9 +1088,9 @@ class MallAgent:
             tools=[
                 my_order_query,
                 order_detail_query,
+                logistics_trace_query,
                 product_consult_query,
                 aftersale_policy_query,
-                logistics_trace_query,
                 mall_rag_search,
             ],
             system_prompt=MALL_SYSTEM_PROMPT,
@@ -1486,7 +1572,7 @@ class WarehouseAgent:
         if interrupt:
             return DomainAgentResult(
                 route="warehouse",
-                answer="该操作涉及仓储审批，当前已进入待审批状态。",
+                answer="该操作需要审批人确认；确认通过后，系统才会正式提交出库审批申请。",
                 tool_calls=self._extract_tool_calls(result),
                 skill_used=self._extract_skills(result),
                 status="need_approval",
@@ -1833,7 +1919,7 @@ status in ["success", "need_approval", "fallback", "error"]
 
 - `inventory_query / inventory_log_query / approval_status_query / outbound_apply`
   底层默认查 PostgreSQL
-- 如果后续要加仓储 SOP、审批规则、盘点 FAQ，可再补一个 `warehouse_rag_search`，底层走 Milvus
+- `warehouse_rag_search / shared_policy_rag_search` 已接入，底层走 Milvus + 本地 lexical 混合召回
 - token 校验仍然由 FastAPI 拦截器 + Redis 体系负责
 - Agent 图的持久化状态走 PostgreSQL checkpoint
 
@@ -2055,6 +2141,27 @@ Milvus 官方文档支持 metadata filtering，而且过滤可以直接和 ANN �
 - dense recall：语义召回
 - keyword/full-text recall：精确术语召回
 - merge 后进 rerank
+
+当前 `tao-ai` 代码落地也按这个思路收口：
+
+- `app/repositories/document_repo.py` 负责扫描知识源、解析文档、切 chunk、缓存 chunk 清单
+- `app/repositories/milvus_repo.py` 负责建 Milvus collection、维护 metadata 字段、同步向量索引、执行 dense search
+- `app/rag/retriever.py` 保留本地 lexical recall，专门兜 SKU / 仓库号 / 固定术语这类精确词
+- `app/rag/service.py` 统一合并 dense + lexical 结果，再做 rerank 和 context pack
+
+当前同步策略：
+
+- 以 `chunk_id + checksum + version + embed_model` 生成语料签名
+- 语料签名未变化时跳过重复向量化
+- 语料签名变化时，重建当前 collection 再全量写入
+
+当前 collection 至少落这些字段：
+
+- `chunk_id / doc_id / title / content`
+- `domain / scene / source_type`
+- `access_level / tenant_id / role_allowlist / warehouse_scope`
+- `version / effective_at_ts / is_active`
+- `metadata / embedding`
 
 ### 4）rerank
 

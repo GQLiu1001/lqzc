@@ -15,8 +15,9 @@ from datetime import datetime, timezone
 
 from langchain_core.tools import tool
 
-from app.core.runtime_context import get_user_context
+from app.core.runtime_context import get_session_id, get_user_context
 from app.mcp import client as mcp_client
+from app.tools import rag_tools
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +32,10 @@ async def inventory_query(warehouse_id: str, item_id: str) -> dict:
         return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
     if not warehouse_id or not item_id:
         return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供仓库编号和商品ID"}
-
-    # 通过 MCP 调用 Java 端已有的库存查询能力
-    result = await mcp_client.call_tool("getInventoryByModel", {"model": item_id.strip()})
-    if isinstance(result, dict) and result.get("success") is False:
-        return result
-    return {
-        "success": True,
-        "warehouseId": warehouse_id,
-        "itemId": item_id,
-        "data": result,
-    }
+    return await mcp_client.call_tool(
+        "getWarehouseInventory",
+        {"warehouseNum": int(warehouse_id), "itemId": int(item_id)},
+    )
 
 
 @tool
@@ -56,13 +50,10 @@ async def inventory_log_query(
         return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
     if not warehouse_id or not item_id:
         return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供仓库编号和商品ID"}
-
-    # TODO: wire to Java MCP tool or direct PostgreSQL query once available
-    return {
-        "success": False,
-        "errorCode": "NOT_IMPLEMENTED",
-        "message": f"仓库 {warehouse_id} 商品 {item_id} 近 {days} 天流水查询工具尚未接入",
-    }
+    return await mcp_client.call_tool(
+        "getInventoryLog",
+        {"warehouseNum": int(warehouse_id), "itemId": int(item_id), "days": max(1, min(days, 90))},
+    )
 
 
 # ── 审批执行类工具（approval_subagent 使用）──────────────────────────
@@ -90,19 +81,25 @@ async def outbound_apply(
     if not warehouse_id or not item_id or qty <= 0:
         return {"success": False, "errorCode": "INVALID_PARAM", "message": "仓库、商品、数量参数不完整或非法"}
 
-    approval_no = f"AP{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:4].upper()}"
-    # TODO: persist to outbound_approval table in agent_db
-    return {
-        "success": True,
-        "approvalNo": approval_no,
-        "warehouseId": warehouse_id,
-        "itemId": item_id,
-        "qty": qty,
-        "reason": reason,
-        "applicantId": ctx.user_id,
-        "status": "pending",
-        "message": "出库申请已提交，等待审批",
-    }
+    role_id = ctx.role_ids[0] if ctx.role_ids else None
+    if role_id is None:
+        return {"success": False, "errorCode": "MISSING_ROLE", "message": "缺少角色信息，无法提交审批"}
+
+    session_id = get_session_id() or datetime.now(timezone.utc).strftime("sess-%Y%m%d%H%M%S")
+    idempotency_key = f"{session_id}:submitOutboundApply:{warehouse_id}:{item_id}:{qty}:{reason.strip()}"
+
+    return await mcp_client.call_tool(
+        "submitOutboundApply",
+        {
+            "warehouseNum": int(warehouse_id),
+            "itemId": int(item_id),
+            "quantity": qty,
+            "reason": reason,
+            "operatorUserId": ctx.user_id,
+            "roleId": role_id,
+            "idempotencyKey": idempotency_key,
+        },
+    )
 
 
 @tool
@@ -113,10 +110,4 @@ async def approval_status_query(approval_id: str) -> dict:
         return {"success": False, "errorCode": "NO_USER_CONTEXT", "message": "无法获取当前用户信息"}
     if not approval_id or not approval_id.strip():
         return {"success": False, "errorCode": "MISSING_PARAM", "message": "请提供审批单号"}
-
-    # TODO: query outbound_approval table in agent_db
-    return {
-        "success": False,
-        "errorCode": "NOT_IMPLEMENTED",
-        "message": f"审批单 {approval_id} 状态查询尚未接入",
-    }
+    return await mcp_client.call_tool("getApprovalStatus", {"approvalId": approval_id.strip()})
