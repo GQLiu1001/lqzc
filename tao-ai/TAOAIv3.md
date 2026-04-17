@@ -3114,9 +3114,216 @@ MCP 调用应纳入统一审计与日志体系。
 
 ---
 
-# 附录 A. RAG 文档导入与调用链 trace 日志（待实现 TODO）
+# 12. 如何导入新文档到 RAG
 
-> 状态：**尚未实现，等下次继续推进**。本节先把需求、设计、当前勘察结果落档，避免 token 耗尽后丢失。
+这一节用于说明：新知识文档应该放在哪里、如何触发重建、如何看 trace 日志，以及如何验证新文档已经真正被检索命中。
+
+## 12.1 文档放置位置
+
+根据文档面向的人群和权限边界，放到以下三类目录之一：
+
+### 1）商城客户可见文档
+
+适用内容：
+
+- 商品说明
+- 售后政策
+- 保养/清洁指南
+- 面向终端客户的 FAQ
+
+可放位置：
+
+- `src/main/resources/manuals/`
+- `tao-ai/knowledge/mall/`
+
+说明：
+
+- `manuals/` 更适合现有商城手册类文档
+- `knowledge/mall/` 更适合后续新增的商城知识库材料
+- 这些文档会进入 `domain=mall`
+
+### 2）仓储员工可见文档
+
+适用内容：
+
+- 仓储 SOP
+- 出入库规范
+- 审批规则
+- 库位、盘点、调拨相关制度
+
+可放位置：
+
+- `tao-ai/knowledge/warehouse/`
+
+说明：
+
+- 这些文档会进入 `domain=warehouse`
+- 如需限制角色，可在 metadata 中配置 `role_allowlist`
+- 常见允许角色包括 `staff / warehouse_manager / admin`
+
+### 3）共享通用规则文档
+
+适用内容：
+
+- 跨域通用政策
+- 公共术语解释
+- 所有 Agent 都可复用的统一规则
+
+可放位置：
+
+- `tao-ai/knowledge/shared/`
+
+说明：
+
+- 这些文档会进入 `domain=shared`
+- 适合放不属于单一商城域或仓储域的公共说明
+
+## 12.2 支持的文件类型
+
+当前支持的文档后缀为：
+
+- `.md`
+- `.markdown`
+- `.txt`
+
+扫描来源由 `app/rag/constants.py::default_knowledge_sources()` 统一定义。
+
+## 12.3 scene 识别规则
+
+`app/rag/parser.py::resolve_scene()` 当前按以下规则推断 scene：
+
+1. 如果 source 已经显式配置了 scene，则优先使用 source 配置。
+2. 如果根目录名是 `manuals`，则进一步看文件名关键词：
+   - 文件名包含“售后” -> `aftersale_policy`
+   - 文件名包含“保养”或“清洁” -> `product_consult`
+3. 其他情况按路径第一段推断 scene。
+
+建议：
+
+- 售后类文档文件名尽量带“售后”
+- 商品使用/保养类文档文件名尽量带“保养”或“清洁”
+- 仓储规则文档按清晰目录分层，避免 scene 语义模糊
+
+## 12.4 两种触发重建方式
+
+### 1）CLI 重建
+
+在 `tao-ai/` 目录下执行：
+
+```bash
+python -m app.rag.ingest
+```
+
+当前 `app/rag/ingest.py` 的 CLI 入口会调用：
+
+```python
+await ingest_default_corpus(force_refresh=True)
+```
+
+适用场景：
+
+- 本地开发调试
+- 新增文档后立即手动重建
+- 观察控制台 trace 日志
+
+### 2）REST 重建
+
+通过管理接口触发：
+
+```bash
+curl -X POST http://localhost:8000/rag/reindex \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"forceRefresh": true}'
+```
+
+说明：
+
+- `POST /rag/reindex` 仅允许 `user_type=staff` 且 `role=admin`
+- body 同时兼容 `forceRefresh` 与 `force_refresh`
+- 返回值包含 `documents / chunks / domains / milvus`
+
+另外也可以查看当前索引摘要：
+
+```bash
+curl http://localhost:8000/rag/summary \
+  -H "Authorization: Bearer <staff_or_admin_token>"
+```
+
+说明：
+
+- `GET /rag/summary` 仅允许已登录 `staff`
+- 返回当前文档数、chunk 数、domain 分布和 Milvus 可用性
+
+## 12.5 控制台 trace 日志样例
+
+下面是一条典型链路示例，展示从 `/chat` 进入，到路由、Agent、Tool、RAG、Milvus 再返回的日志：
+
+```text
+[TRACE]→ chat session_id="sess-abc123" user_id=1001 user_type="customer" role="customer" message="瓷砖如何退款"
+[TRACE]→ supervisor.invoke session_id="sess-abc123" thread_id="sess-abc123" checkpoint_ns="supervisor"
+[TRACE]→ supervisor.route_node session_id="sess-abc123" message="瓷砖如何退款" user_type="customer" role="customer"
+[TRACE]← supervisor.route_node elapsed=0ms route="mall" reason="customer 身份默认走商城域" layer1="customer_only"
+[TRACE]→ mall_agent.invoke session_id="sess-abc123" message="瓷砖如何退款"
+[TRACE]→ tool.aftersale_policy_query session_id="sess-abc123" question="瓷砖如何退款"
+[TRACE]→ tool.rag.mall_rag_search session_id="sess-abc123" query="瓷砖如何退款" scene="aftersale_policy"
+[TRACE]→ rag.search session_id="sess-abc123" domain="mall" scene="aftersale_policy" query="瓷砖如何退款"
+[TRACE]→ milvus._search_sync session_id="sess-abc123" query="瓷砖如何退款" top_k=8
+[TRACE]← milvus._search_sync elapsed=42ms filter_expr="domain == \"mall\" and ..." dense_limit=24 raw_hits=6 hits=6
+[TRACE]← rag.search elapsed=88ms rewritten_query="瓷砖 退款 售后" milvus_hits=6 lexical_hits=4 merged_hits=7 reranked_hits=3 mode="hybrid"
+[TRACE]← tool.rag.mall_rag_search elapsed=89ms hits=3 no_hit=false mode="hybrid"
+[TRACE]← tool.aftersale_policy_query elapsed=90ms hits=3 no_hit=false mode="hybrid"
+[TRACE]← mall_agent.invoke elapsed=412ms status="success" tool_calls=["aftersale_policy_query"] skill_used=["response_format"]
+[TRACE]← supervisor.invoke elapsed=420ms route="mall" status="success" tool_calls=["aftersale_policy_query"]
+[TRACE]← chat elapsed=426ms route="mall" status="success" tool_calls=["aftersale_policy_query"]
+```
+
+如果是重建链路，则会看到类似日志：
+
+```text
+[TRACE]→ rag.reindex user_id=1 user_type="staff" role="admin" force_refresh=true
+[TRACE]→ rag.ingest_default_corpus force_refresh=true
+[TRACE]→ milvus._index_chunks_sync chunks=18 force_refresh=true
+[TRACE]→ milvus._rebuild_collection collection="taoai_rag_chunks" embedding_dim=4096
+[TRACE]← milvus._rebuild_collection elapsed=1794ms dropped_old=true created_new=true
+[TRACE]← milvus._index_chunks_sync elapsed=34754ms available=true indexed=18 sync_skipped=false batches=1
+[TRACE]← rag.ingest_default_corpus elapsed=34760ms documents=12 chunks=18
+[TRACE]← rag.reindex elapsed=34761ms documents=12 chunks=18
+```
+
+## 12.6 验证步骤
+
+新增文档后，建议按下面顺序验证：
+
+1. 把文档放到正确目录，并确认文件后缀属于 `.md / .markdown / .txt`。
+2. 执行 `python -m app.rag.ingest`，或调用 `POST /rag/reindex`。
+3. 调用 `GET /rag/summary`，确认 `documents` 或 `chunks` 数量发生变化。
+4. 查看控制台 trace，确认出现 `rag.ingest_default_corpus`、`milvus._index_chunks_sync`、`milvus._rebuild_collection` 或 `syncSkipped` 等日志。
+5. 发起一次 `/chat`，问题内容尽量使用“只有新文档里才有”的关键词。
+6. 查看 trace，确认链路中出现：
+   - `tool.rag.mall_rag_search` 或 `tool.rag.warehouse_rag_search`
+   - `rag.search`
+   - `milvus._search_sync`
+7. 如果回答仍未命中新文档，优先排查：
+   - 文档是否放错 domain 目录
+   - 文件名是否未命中期望的 scene 规则
+   - 文档内容是否过短或关键词过弱
+   - 当前用户角色是否被 `role_allowlist` 过滤
+
+## 12.7 当前接口与实现落点
+
+相关实现文件如下：
+
+- `app/api/rag.py`
+- `app/rag/ingest.py`
+- `app/rag/service.py`
+- `app/repositories/milvus_repo.py`
+- `app/core/trace.py`
+- `main.py`
+
+---
+
+# 附录 A. RAG 文档来源与索引补充说明
 
 ## A.1 当前 RAG 文档来源（已存在的）
 
@@ -3146,109 +3353,3 @@ scene 推断逻辑（`parser.py::resolve_scene`）：
   - 入口 2：每次 `RAGService.search` 都会 `await milvus_repo.index_chunks(...)`，靠 sha1 签名 skip 已索引的批次（`_is_collection_current`）
   - 签名状态持久化在 `tao-ai/.rag_cache/milvus_sync.json`
 - **Fallback**：Milvus 连不通时 `availability()` 降级，走本地 lexical 召回，系统不崩
-
-## A.3 要实现的 TODO 列表
-
-### Task #5 — 加统一 trace logger 工具
-**目标文件**：新建 `app/core/trace.py`
-
-**职责**：提供 `trace_in(name, **kwargs)` / `trace_out(name, result, elapsed_ms)` / `traced()` 装饰器；输出结构化日志：
-```
-[TRACE]→ mall_rag_search query="瓷砖如何退款" scene="aftersale_policy" user_id=1001
-[TRACE]← mall_rag_search elapsed=342ms hits=3 no_hit=false mode=hybrid
-```
-
-**规则**：
-- 使用 `logging.getLogger("taoai.trace")`
-- 入参/出参太大时只截前 500 字符，防止刷屏
-- 支持同步 + 异步函数
-- 耗时使用 `time.perf_counter()`
-- dict / pydantic model 只打 key 列表 + 关键字段摘要（如 `hits=N`, `score=xx`, `tool=xx`）
-
-### Task #8 — 配置 logging basicConfig
-**目标文件**：`main.py` lifespan 顶部
-
-```python
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
-)
-logging.getLogger("taoai.trace").setLevel(logging.INFO)
-# httpx/pymilvus 噪音压到 WARNING
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("pymilvus").setLevel(logging.WARNING)
-```
-
-### Task #7 — 给关键链路打 trace 日志
-**埋点清单**（按调用链顺序）：
-
-1. **入口层**
-   - `app/api/chat.py::chat` — 入参 `{session_id, user_id, role, message[:100]}`；出参 `{route, status, tool_calls, elapsed_ms}`
-   - `app/api/interrupt.py::submit_decision` — 入参 `{session_id, decision, tool}`；出参 `{status, elapsed_ms}`
-
-2. **Supervisor 层**
-   - `app/supervisor/service.py::SupervisorService.invoke` — 打 checkpoint ns + thread_id
-   - `app/supervisor/nodes.py::route_node` — 三层路由每一层命中情况 + reason
-   - `app/supervisor/nodes.py::_llm_route` — LLM classifier prompt + 原始输出 + 裁决结果
-
-3. **Agent 层**
-   - `app/agents/mall_agent.py::MallAgent.invoke` — runtime_guard 摘要 + 最终 answer[:200] + tool_calls + skill_used
-   - `app/agents/warehouse_agent/__init__.py::WarehouseAgent.invoke/resume` — 同上 + interrupt 命中情况
-   - subagent（inventory / approval）入口也打
-
-4. **Tool 层**（每个 `@tool` 函数入口+出口）
-   - `app/tools/mall_tools.py`：9 个工具
-   - `app/tools/warehouse_tools.py`：4 个工具
-   - `app/tools/rag_tools.py`：3 个工具
-   - 建议统一用 `@traced` 装饰器包一下，不要一个个手写
-
-5. **RAG 层**
-   - `app/rag/service.py::RAGService.search` — query、rewritten_query、used_filters、各阶段 hit 数（milvus / lexical / merged / reranked）、search_mode、latency_ms
-   - `app/rag/ingest.py::ingest_default_corpus` — force_refresh、解析文档数、chunk 数、milvus 返回
-   - `app/repositories/milvus_repo.py`：
-     - `_rebuild_collection` — embedding_dim、drop old、create new
-     - `_index_chunks_sync` — batch 数、每 batch 上传记录数、总 indexed
-     - `_search_sync` — filter 表达式、dense_limit、原始 hit 数
-
-6. **MCP 层**
-   - `app/mcp/client.py::call_tool` — tool_name、arguments（脱敏）、HTTP status、返回 success/errorCode、elapsed
-
-7. **Audit 层**
-   - `app/audit/service.py::record_audit_event` — 写入结果、冲突 skip 情况
-
-### Task #6 — 新增 /rag/reindex 端点
-**新建文件**：`app/api/rag.py`
-
-**端点**：
-- `POST /rag/reindex` — body `{"force_refresh": true}`，调 `ingest_default_corpus(force_refresh=...)`，返回 documents / chunks / domains / milvus 结果；需 admin 权限（复用 `get_current_user` 依赖 + 角色校验）
-- `GET /rag/summary` — 调 `RAGService.corpus_summary()` 返回当前索引概况 + milvus 可用性
-
-**main.py 改动**：新增 `from app.api.rag import router as rag_router`；`app.include_router(rag_router)`
-
-**权限**：只允许 `user_type=staff` 且 `role in ("admin",)` 调用（reindex 对系统侧影响大）
-
-### Task #9 — TAOAIv3.md 加入导入文档流程
-写一节《§12 如何导入新文档到 RAG》，覆盖：
-
-1. **三种放置位置**（按 domain/权限选）
-   - 商城客户可见：`src/main/resources/manuals/` 或 `tao-ai/knowledge/mall/`
-   - 仓储员工可见：`tao-ai/knowledge/warehouse/`（带 role_allowlist）
-   - 共享通用规则：`tao-ai/knowledge/shared/`
-2. **两种触发重建**
-   - CLI：`python -m app.rag.ingest`（force_refresh=True）
-   - REST：`curl -X POST http://localhost:8000/rag/reindex -H "Authorization: Bearer <admin_token>" -d '{"force_refresh": true}'`
-3. **控制台 trace 日志样例**（展示一次典型问答的完整链路输出）
-4. **scene 识别规则**（文件名关键词 → scene）
-5. **验证步骤**：`GET /rag/summary` 看 chunk 数变化；发 `/chat` 问一个新文档里才有的问题，确认命中
-
-## A.4 恢复工作的入口
-
-下次继续时：
-1. `TaskList` 能看到 Task #5–#9 仍为 pending
-2. 从 **#5 trace.py → #8 logging → #7 埋点 → #6 端点 → #9 文档** 顺序推进
-3. 已勘察完的代码都不需要重读，直接按 A.3 清单改
-4. 改完最好跑一次 `python -c "from main import app"` 验证 import 不炸，再跑一次 `python -m app.rag.ingest` 看 trace 日志是否齐全
