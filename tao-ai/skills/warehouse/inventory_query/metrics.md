@@ -1,0 +1,4 @@
+- on_hand
+- available
+- reserved
+- in_transit
