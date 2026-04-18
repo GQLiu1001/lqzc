@@ -400,13 +400,13 @@
   {
     "doc_id": "mall:aftersale_policy_refund_exchange_policy",
     "chunk_id": "mall:aftersale_policy_refund_exchange_policy#001",
-    "title": "瓷砖退款与换货政策",
-    "content": "# 瓷砖退款与换货政策\n\n## 适用范围\n\n本政策适用于商城 C 端订单中的标准瓷砖、辅料和常规配件，不适用于定制裁切、样品赠送和清仓特价商品。\n\n## 退款条件\n\n- 商品签收后 7 日内可联系客服发起退款申请\n- 商品需保持未铺贴、未裁切、未浸水、包装和配件完整\n- 不影响二次销售时，平台按原支付路径退回\n- 已开具发票的订单，需先完成红字或发票回收流程\n\n## 不支持无理由退款的场景\n\n- 定制、裁切、清仓、尾货、样板处理类商品\n- 已经铺贴、使用或明显影响二次销售的商品\n- 因客户地址填写错误导致的二次配送费用\n\n## 破损、错发与换货\n\n- 签收现场发现破损，应当场拍照、备注异常并联系售后\n- 签收后 24 小时内发现隐性破损，可提交照片和箱码申请换货或补发\n- 如属于仓库错发、漏发，平台优先补发，必要时安排换货\n\n## 时效承诺\n\n- 售后客服在 1 个工作日内完成受理\n- 审核通过后，退款通常在 1-3 个工作日原路退回\n- 涉及补发或换货的订单，以仓库排线和物流时效为准",
+    "title": "瓷砖售后、退款与换货完整政策",
+    "content": "# 瓷砖售后、退款与换货完整政策\n\n## 适用范围\n\n本政策适用于商城 C 端订单中的标准瓷砖、辅料和常规配件。以下情形不适用本政策或另行约定：\n\n- 定制切割、拼花、开孔加工类商品\n- 样板赠品、活动赠品、以赠送形式发放的辅料\n- 清仓尾货、样板处理、特价专区商品\n- 商家或客服明确标注\"不支持无理由退换\"的 SKU\n- 已跨境或出口至海外的订单按海外政策单独处理\n\n## 退款基础条件\n\n- 商品签收后 **7 个自然日** 内可联系客服发起退款申请\n- 商品保持 **未铺贴、未裁切、未浸水**，箱体和随箱配件完好\n- 不影响二次销售时，平台按原支付路径退回\n- 单笔订单允许拆单退款，但需保证整箱整件，不支持拆包零散退\n- 已开具发票的订单，需先完成红字或发票回收流程后才会打款\n\n## 不支持无理由退款的场景\n\n- 商品已经铺贴、上墙、安装或明显影响二次销售\n- 已裁切、开孔、倒角等现场加工商品\n- 客户地址填写错误或无人签收导致的二次配送费用\n- 因客户自行保管不善导致的受潮、碎裂、污染\n- 超出 7 天售后时效后提出的退款申请\n\n## 保修与质量问题判定\n\n- 标准产品出厂保修期 **24 个月**，岩板台面 **36 个月**\n- 保修范围覆盖：非人为的色差、图案错版、翘曲、掉釉、龟裂\n- 保修不覆盖：运输后用户二次搬运造成的磕碰、铺贴工艺引起的空鼓开裂\n- 质量问题判定以厂家质检报告或平台签约的第三方检测为准\n- 批次性重大质量问题由平台主动召回并提供换货或全额退款",
     "domain": "mall",
     "scene": "aftersale_policy",
     "source_type": "knowledge_base",
-    "version": "2026-04-17",
-    "effective_at": "2026-04-17T20:47:38.926762",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:42:15.274222",
     "metadata": {
       "source_name": "knowledge_mall",
       "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/aftersale_policy/refund_exchange_policy.md",
@@ -415,19 +415,61 @@
       "access_level": "customer",
       "role_allowlist": [],
       "warehouse_scope": [],
-      "checksum": "ad558e3197ae40fb1a86ba8ce1f3c4d3ff0d5c4d"
+      "checksum": "9fc2a719b7173309232671320b6380114e355cb8"
+    }
+  },
+  {
+    "doc_id": "mall:aftersale_policy_refund_exchange_policy",
+    "chunk_id": "mall:aftersale_policy_refund_exchange_policy#002",
+    "title": "瓷砖售后、退款与换货完整政策",
+    "content": "## 发票与红字流程\n\n- 电子普票默认在订单发货后 1-3 个工作日开具\n- 增值税专用发票需提供公司抬头、税号、开户行、账号等完整信息\n- 退款涉及发票回收时，客户需在客服引导下完成红字申请\n- 红字发票开具周期一般 3-5 个工作日，期间退款款项会处于待打款状态\n- 抬头错误、税号错误的发票，可在开票后 30 日内申请作废换开\n\n## 破损、错发与补发\n\n### 签收现场破损\n\n- 发现外包装破损或液体渗漏时，应当场拍照并备注到签收单\n- 拒收时，需让物流人员签字确认异常原因\n- 上传照片、箱码和签收单后，售后团队通常 1 个工作日内响应\n\n### 隐性破损\n\n- 签收后 **24 小时内** 开箱发现的破损视为隐性破损\n- 需提供开箱过程完整视频或连续多角度照片\n- 超过 24 小时报破损，平台仅按协商比例处理，不承诺全额补发\n\n### 错发、漏发\n\n- 发错货号、发错规格、数量不符，属于仓库责任，优先补发\n- 仓库库存紧张时可安排换发或部分退款\n- 补发订单不重新计算 7 天售后时效，以原订单签收日为准\n\n## 运输破损专项\n\n- 运输过程整托翻车、严重挤压造成的大面积破损按专项处理\n- 平台协调物流方先行登记异常，客户无需承担争议赔偿\n- 运输破损超过 30% 的订单，客户可要求整单换发或全额退款\n- 岩板大板因运输导致隐性裂纹，允许签收后 72 小时内补报",
+    "domain": "mall",
+    "scene": "aftersale_policy",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:42:15.274222",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/aftersale_policy/refund_exchange_policy.md",
+      "relative_path": "aftersale_policy/refund_exchange_policy.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "54f546ccd5396a8893586f95d57ea4a47b065cdd"
+    }
+  },
+  {
+    "doc_id": "mall:aftersale_policy_refund_exchange_policy",
+    "chunk_id": "mall:aftersale_policy_refund_exchange_policy#003",
+    "title": "瓷砖售后、退款与换货完整政策",
+    "content": "## 升级与投诉渠道\n\n- 售后客服 1 个工作日内未响应，客户可申请升级到主管复核\n- 主管升级 24 小时未解决，自动进入高级客服和平台仲裁流程\n- 涉及金额较大或多次协商未果的纠纷，可申请平台介入\n- 客户反馈问题应关联订单号、商品编码、照片证据一并提交\n\n## 时效承诺\n\n- 售后客服 **1 个工作日** 内完成首次受理\n- 审核通过的退款通常在 **1-3 个工作日** 原路退回银行账户\n- 微信、支付宝等第三方支付退款到账时间受第三方平台影响\n- 涉及补发或换货的订单以仓库排线和物流时效为准\n- 红字发票流程不计入退款到账承诺时效\n\n## 回答边界\n\n- 具体订单的退款状态、金额、进度需通过订单工具查询\n- 本手册只提供通用政策，特殊活动、B 端订单、海外订单需单独说明\n- 涉及具体金额减免和例外处理，不得口头承诺，必须由客服工单记录",
+    "domain": "mall",
+    "scene": "aftersale_policy",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:42:15.274222",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/aftersale_policy/refund_exchange_policy.md",
+      "relative_path": "aftersale_policy/refund_exchange_policy.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "86d2f45859d7b12d1907be0c38efea8813a9dfd5"
     }
   },
   {
     "doc_id": "mall:logistics_delivery_commitment",
     "chunk_id": "mall:logistics_delivery_commitment#001",
-    "title": "商城配送时效与签收承诺",
-    "content": "# 商城配送时效与签收承诺\n\n## 常规时效\n\n- 同城订单：通常 1-2 日送达\n- 省内订单：通常 2-3 日送达\n- 跨省订单：通常 3-7 日送达\n- 偏远地区、极端天气、管制路段等情况会顺延\n\n## 发货与排线\n\n- 支付成功后，订单进入仓库备货与排线流程\n- 大规格瓷砖、整车配送或定制加工订单，时效以客服确认结果为准\n- 节假日高峰期可能延后 1-2 个工作日\n\n## 地址与收货时间变更\n\n- 未进入排线或未发货前，可联系客服申请修改收货地址或预约时间\n- 已装车、已发货或已进入末端派送的订单，不承诺一定能改址\n- 如需二次配送，额外费用按实际物流规则收取\n\n## 签收要求\n\n- 签收前需核对数量、外包装和箱码\n- 发现破损、浸水、错发，应当场拍照并联系售后\n- 签收后再主张物流破损，需提供 24 小时内的照片与异常说明",
+    "title": "商城配送、运费与签收完整政策",
+    "content": "# 商城配送、运费与签收完整政策\n\n## 基础配送时效\n\n- 同城订单：发货后通常 **1-2 个自然日** 送达\n- 省内订单：发货后通常 **2-3 个自然日** 送达\n- 跨省订单：发货后通常 **3-7 个自然日** 送达\n- 偏远地区、极端天气、重大节假日、管制路段等情况会顺延\n- 大板、岩板、整车配送订单时效以客服和物流方确认结果为准\n\n## 运费与收费规则\n\n- 系统默认按 **首重 + 续重** 计算，瓷砖通常按件数或立方米折算\n- 同城订单常规首重 5 元，续重 1 元 /kg，起送量以页面展示为准\n- 跨省订单按实际体积或重量取大值，岩板、大板为整车物流结算\n- 满额包邮规则以营销页面为准，订单拆单后不一定继续享受包邮\n- 二次配送、改址、拒收复发等额外费用由下单方承担\n\n## 偏远地区与不派送区域\n\n- 西藏、新疆、青海、内蒙、海南等偏远地区需加收额外运费\n- 港澳台、海外地址暂不直接发货，需通过转运或专项物流\n- 部分乡镇、山区只能配送至县城中转站，不承诺送货上门\n- 大板、整车订单对小区道路、楼层、电梯有尺寸要求，需提前确认\n- 不通路段、台风暴雨期间，物流公司可能暂停接单\n\n## 发货与排线\n\n- 订单支付成功后，进入仓库备货和排线流程\n- 常规商品通常在 **24-48 小时** 内完成出库\n- 大规格瓷砖、整车配送、定制加工订单，排线时效以仓库确认为准\n- 节假日和双十一大促高峰期可能延后 1-3 个工作日\n- 订单状态可通过订单查询工具实时追踪",
     "domain": "mall",
     "scene": "logistics",
     "source_type": "knowledge_base",
-    "version": "2026-04-17",
-    "effective_at": "2026-04-17T20:47:38.927044",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:43:02.529682",
     "metadata": {
       "source_name": "knowledge_mall",
       "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/logistics/delivery_commitment.md",
@@ -436,7 +478,49 @@
       "access_level": "customer",
       "role_allowlist": [],
       "warehouse_scope": [],
-      "checksum": "fdfc115ba83e258f07bc5dccb36b3d3c20f1a6ad"
+      "checksum": "8cba692a02df7f2d52c7ea1e21f3a180e69a1365"
+    }
+  },
+  {
+    "doc_id": "mall:logistics_delivery_commitment",
+    "chunk_id": "mall:logistics_delivery_commitment#002",
+    "title": "商城配送、运费与签收完整政策",
+    "content": "## 地址与收货时间变更\n\n- 订单 **未排线或未出库前** 可联系客服修改收货地址或预约时间\n- 已进入排线或已装车后，修改地址需要客服二次确认\n- 已发货、已装车或进入末端派送的订单，不承诺一定能改址\n- 跨大区改址通常视为退回重发，可能产生往返运费\n- 需要预约具体送达时间的，建议下单时在备注栏写明\n\n## 签收核验要求\n\n- 签收前必须核对收件人姓名、订单号、外包装、箱码和数量\n- 发现破损、浸水、封箱异常时应当场拍照并联系售后\n- 整车到货需对照装车清单逐件核对，避免漏卸或混装\n- 签收后再主张物流破损，需提供签收后 24 小时内的照片和异常说明\n- 物流员强制送达但客户无法核验时，可备注\"未开箱验货\"再签收\n\n## 拒收与退回规则\n\n- 包装严重破损、数量不符、与订单描述严重不符时可现场拒收\n- 拒收需让物流员签字确认异常原因，并保留物流单据\n- 无正当理由拒收导致的二次物流费用由下单方承担\n- 拒收的商品退回仓库后，系统按实际回库数量发起退款\n- 退回途中发生的进一步破损，不计入客户赔偿范围\n\n## 物流异常与赔付\n\n- 物流丢件、严重延误超过 **15 个自然日** 视为异常\n- 平台会协调物流公司发起理赔，客户无需自行联系承运方\n- 理赔通常按商品实付金额和运费原路退回\n- 大板、岩板运输破损适用专项理赔条款，处理周期较常规稍长\n- 节假日、极端天气造成的延误不计入理赔时效",
+    "domain": "mall",
+    "scene": "logistics",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:43:02.529682",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/logistics/delivery_commitment.md",
+      "relative_path": "logistics/delivery_commitment.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "75f9b44be999a667d82cfacc95e7fd5417e7189d"
+    }
+  },
+  {
+    "doc_id": "mall:logistics_delivery_commitment",
+    "chunk_id": "mall:logistics_delivery_commitment#003",
+    "title": "商城配送、运费与签收完整政策",
+    "content": "## 回答边界\n\n- 具体订单的物流状态、揽收时间、派送员信息由订单工具查询\n- 特殊配送（吊装、入户安装）需要客服单独确认，不在通用承诺范围\n- 本手册仅说明标准配送流程，企业大宗订单按合同另行约定",
+    "domain": "mall",
+    "scene": "logistics",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:43:02.529682",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/logistics/delivery_commitment.md",
+      "relative_path": "logistics/delivery_commitment.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "34c3a74724ee6471e3e8ddb8253a3a9b2dbc3279"
     }
   },
   {
@@ -461,6 +545,48 @@
     }
   },
   {
+    "doc_id": "mall:product_consult_tile_care_and_cleaning",
+    "chunk_id": "mall:product_consult_tile_care_and_cleaning#001",
+    "title": "瓷砖清洁与日常保养",
+    "content": "# 瓷砖清洁与日常保养\n\n## 日常清洁周期\n\n- 每日：干拖或吸尘，清除砂石颗粒，避免划伤釉面\n- 每周：温水加中性清洁剂湿拖一次，重点处理厨房和卫生间\n- 每月：检查美缝和填缝剂状态，发现霉斑及时处理\n- 每季度：对大面积地砖做专业打蜡或晶面养护\n\n## 常见污渍处理\n\n- 油污：厨房专用去油剂或稀释洗洁精，擦拭后清水过一遍\n- 水垢：柠檬酸或稀释白醋浸泡棉布敷 5-10 分钟后擦拭\n- 墨水、颜料：酒精或专用瓷砖清洁剂，切勿使用强酸强碱\n- 铁锈：草酸溶液点涂，放置 1-2 分钟后清水冲净\n\n## 禁忌事项\n\n- 禁止使用钢丝球或粗糙砂纸，会破坏釉面和光泽\n- 禁止长期使用盐酸、洁厕灵等强酸性清洁剂\n- 禁止让酸性水果汁液长时间停留在砖面\n- 禁止用冰冷水直接泼洒刚结束热烹饪的瓷砖\n\n## 不同表面的差异\n\n- 釉面砖：轻柔擦拭为主，避免长期使用含蜡清洁剂堵塞毛孔\n- 哑光砖：表面凹凸较多，更容易吃色，污渍要及时处理\n- 抛光砖：光亮度高，避免尖锐物品撞击产生明显划痕\n- 通体砖与岩板：耐磨性强，但台面应避免直接放高温器具\n\n## 美缝维护\n\n- 美缝胶使用寿命一般 3-5 年，发霉或脱落需局部修补\n- 卫生间、阳台等湿区建议每 2 年检查一次美缝状况\n- 填缝剂出现粉化、掉色时，应铲除重做，不要简单覆盖\n\n## 回答边界\n\n- 涉及材料成分和过敏反应，建议用户咨询医生或厂家说明书\n- 高档岩板或特殊工艺砖应按卖家提供的专属保养手册执行\n- 不建议客户自行使用工业级强酸强碱，避免人身和产品损坏",
+    "domain": "mall",
+    "scene": "product_consult",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:39:07.533689",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/product_consult/tile_care_and_cleaning.md",
+      "relative_path": "product_consult/tile_care_and_cleaning.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "8be3e83d0444b7af474e3494fd6244a0a3d9a8f9"
+    }
+  },
+  {
+    "doc_id": "mall:product_consult_tile_installation_advice",
+    "chunk_id": "mall:product_consult_tile_installation_advice#001",
+    "title": "瓷砖铺贴与辅料建议",
+    "content": "# 瓷砖铺贴与辅料建议\n\n## 铺贴方法选择\n\n- 湿贴法：水泥砂浆 1:3 现场拌合，适合常规墙面和地砖\n- 干贴法：使用瓷砖胶直接粘贴基层，适合大砖、薄贴和墙面\n- 留缝铺贴：搭配美缝或填缝剂，体现网格感和工艺纹理\n- 无缝铺贴：相邻砖接缝 ≤1mm，需严格挑砖和加工\n\n## 留缝与美缝\n\n- 常规地砖：留缝 1.5-3mm，满足热胀冷缩\n- 大板瓷砖：留缝 2-3mm，避免切角崩边\n- 美缝施工时间：铺贴完成 24-48 小时后，表面干燥再施工\n- 美缝产品选择：防霉、防污、颜色与砖体协调\n\n## 辅料配比\n\n- 瓷砖胶：按厂家说明水粉比搅拌，静置 5-10 分钟二次搅拌\n- 填缝剂：按包装比例加水，搅拌至无颗粒状态\n- 防水涂料：墙面涂刷 2-3 遍，阴角、管根部位重点加强\n- 切割辅料：按每 10 平米预留 8%-12% 损耗\n\n## 常见施工问题\n\n- 空鼓：多因基层处理不当或水泥砂浆配比不合理\n- 开裂：基层结构变形或养护周期不足\n- 色差：非同批次、不同窑温、未做挑砖导致\n- 起拱：未留缝或收缩缝不足，地暖环境尤其要注意\n\n## 验收要点\n\n- 铺贴完成后 24 小时内避免踩踏和重压\n- 养护期 7 日内不得大规模擦洗和湿拖\n- 验收时使用小锤敲击，听声判断空鼓率\n- 空鼓率整体控制在 5% 以内，重点区域（门洞、台面）不超过 3%\n\n## 回答边界\n\n- 具体施工由持证工人或工长执行，本手册仅作参考\n- 涉及承重、防水、地暖等结构性问题，应建议用户联系专业设计师\n- 销售端不承诺代施工工艺和现场改造",
+    "domain": "mall",
+    "scene": "product_consult",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:38:31.721324",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/product_consult/tile_installation_advice.md",
+      "relative_path": "product_consult/tile_installation_advice.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "1ac107b3bcfa066f3541a3e466ff4af27964c680"
+    }
+  },
+  {
     "doc_id": "mall:product_consult_tile_selection_guide",
     "chunk_id": "mall:product_consult_tile_selection_guide#001",
     "title": "瓷砖选型与表面工艺指南",
@@ -482,15 +608,57 @@
     }
   },
   {
+    "doc_id": "mall:product_consult_tile_specification_handbook",
+    "chunk_id": "mall:product_consult_tile_specification_handbook#001",
+    "title": "瓷砖规格与参数速查手册",
+    "content": "# 瓷砖规格与参数速查手册\n\n## 常见规格分档\n\n- 小砖：300×300、300×600，常用于卫浴、阳台墙面\n- 中板：600×600、600×1200，适合客厅、餐厅地面主通铺\n- 大板：750×1500、900×1800，适合大平层、商用空间整体铺贴\n- 岩板：1200×2400、1200×2700，以台面、背景墙和定制家具为主\n\n## 厚度与承重\n\n- 墙砖厚度一般 7-9mm，自重轻、便于干挂和贴片\n- 地砖厚度一般 9-11mm，具备常规人流承重能力\n- 大板地面建议 11-13mm，配合专业辅料和找平\n- 岩板台面常见厚度 12mm / 15mm / 20mm，大跨度场景优先加厚\n\n## 吸水率与分类\n\n- 瓷质砖：吸水率 ≤ 0.5%，适合室内外大多数场景\n- 炻瓷砖：吸水率 0.5% - 3%，多用于墙面装饰\n- 炻质砖：吸水率 3% - 6%，一般作为室内墙砖\n- 陶质砖：吸水率 > 10%，禁止用于潮湿或室外环境\n\n## 色差与分级\n\n- AAA 级：同批次色差极小，适合整屋通铺\n- AA 级：允许细微色差，适合分区铺贴\n- A 级：存在可见色差，作为辅助、点缀或库存清仓处理\n- 客户对色差敏感时，应优先推荐 AAA 级 + 同箱同批次\n\n## 防滑与耐磨指标\n\n- R9：基础防滑等级，适合干区和起居空间\n- R10：中等防滑，适合厨房和玄关\n- R11 及以上：高防滑，适合浴室、户外和泳池边\n- 耐磨等级按莫氏硬度：家装地砖不低于 4 级，商用建议 5 级以上",
+    "domain": "mall",
+    "scene": "product_consult",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:37:48.337017",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/product_consult/tile_specification_handbook.md",
+      "relative_path": "product_consult/tile_specification_handbook.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "4bd8034a99c38b26c71dad560f08e546859370f9"
+    }
+  },
+  {
+    "doc_id": "mall:product_consult_tile_specification_handbook",
+    "chunk_id": "mall:product_consult_tile_specification_handbook#002",
+    "title": "瓷砖规格与参数速查手册",
+    "content": "## 防滑与耐磨指标\n\n- R9：基础防滑等级，适合干区和起居空间\n- R10：中等防滑，适合厨房和玄关\n- R11 及以上：高防滑，适合浴室、户外和泳池边\n- 耐磨等级按莫氏硬度：家装地砖不低于 4 级，商用建议 5 级以上\n\n## 回答边界\n\n- 具体 SKU 的规格、库存、价格须通过商品工具查询\n- 仅基于本手册回答工艺、参数、分级的共性问题\n- 用户问\"能不能用在 XX 场景\"时，提供建议后仍建议确认实物和样板",
+    "domain": "mall",
+    "scene": "product_consult",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:37:48.337017",
+    "metadata": {
+      "source_name": "knowledge_mall",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/mall/product_consult/tile_specification_handbook.md",
+      "relative_path": "product_consult/tile_specification_handbook.md",
+      "is_active": true,
+      "access_level": "customer",
+      "role_allowlist": [],
+      "warehouse_scope": [],
+      "checksum": "699141bdaa598be95d27ed5309fead289617edc9"
+    }
+  },
+  {
     "doc_id": "warehouse:inventory_query_inventory_query_and_log_review",
     "chunk_id": "warehouse:inventory_query_inventory_query_and_log_review#001",
-    "title": "库存查询与流水复核指南",
-    "content": "# 库存查询与流水复核指南\n\n## 查询当前库存\n\n查询某仓某商品的实时库存时，应至少提供：\n\n- `warehouse_id`\n- `item_id`\n\n优先调用 `inventory_query` 获取当前库存、规格、可用数量等信息。\n\n## 查询库存流水\n\n当用户需要判断波动原因、出入库明细或异常来源时，再调用 `inventory_log_query`：\n\n- 同样要求 `warehouse_id`\n- 需要明确 `item_id`\n- `days` 建议控制在 7-30 天，超长窗口用于复盘而不是高频问答\n\n## 标准复核顺序\n\n1. 先看当前库存是否满足问题目标\n2. 再看近 N 天流水，核对入库、出库、调拨、冲正\n3. 如库存和流水结论冲突，标记为待人工排查\n\n## 权限边界\n\n- 只能查询当前角色权限范围内的仓库与商品\n- 不得向无权限用户暴露他仓库存或敏感流水",
+    "title": "库存查询、流水复核与跨仓协同指南",
+    "content": "# 库存查询、流水复核与跨仓协同指南\n\n## 查询当前库存\n\n查询某仓某商品的实时库存时，必须提供至少以下参数：\n\n- `warehouse_id`：目标仓库编号\n- `item_id`：商品 SKU\n\n优先调用 `inventory_query` 工具，返回字段包括：\n\n- `on_hand`：总在库\n- `available`：可用库存（已扣除占用）\n- `reserved`：订单占用库存\n- `damaged` / `quarantine`：残次或隔离库存\n\n查询结果应一并给出商品规格、批次、最近流水时间，便于进一步追溯。\n\n## 查询库存流水\n\n当用户需要判断库存波动原因、出入库明细或异常来源时，应调用 `inventory_log_query`：\n\n- 必填 `warehouse_id` 和 `item_id`\n- `days` 建议控制在 **7-30 天**，超长窗口仅用于复盘而非高频问答\n- 支持按 `source_type` 过滤：`inbound` / `outbound` / `transfer` / `adjust` / `return`\n- 流水条数超过 500 时应分页返回，不允许一次性拉全量",
     "domain": "warehouse",
     "scene": "inventory_query",
     "source_type": "knowledge_base",
-    "version": "2026-04-17",
-    "effective_at": "2026-04-17T20:47:38.927531",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:43:30.319703",
     "metadata": {
       "source_name": "knowledge_warehouse",
       "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/inventory_query/inventory_query_and_log_review.md",
@@ -503,19 +671,69 @@
         "admin"
       ],
       "warehouse_scope": [],
-      "checksum": "a90e1df0b6faf85c463364d3d01936800ceb94d7"
+      "checksum": "8045ab43ca8b988c428a6010a1cd857b6eeec0de"
+    }
+  },
+  {
+    "doc_id": "warehouse:inventory_query_inventory_query_and_log_review",
+    "chunk_id": "warehouse:inventory_query_inventory_query_and_log_review#002",
+    "title": "库存查询、流水复核与跨仓协同指南",
+    "content": "## 标准复核顺序\n\n1. 先看当前库存快照，确认 `on_hand`、`available`、`reserved` 三项是否自洽\n2. 再查近 N 天流水，核对入库、出库、调拨、冲正的发生时间和金额\n3. 对照订单占用情况，确认 `reserved` 是否对应真实订单\n4. 如果库存快照和流水累计结论冲突，**标记为待人工排查**，不得自作解释\n5. 结论输出时引用具体流水 ID 和发生时间，不要模糊描述\n\n## 跨仓库存与调拨查询\n\n- 跨仓调拨涉及两个 `warehouse_id`（源仓和目标仓）\n- 调拨单状态分为：`created` / `in_transit` / `received` / `cancelled`\n- 源仓流水体现为 `transfer_out`，目标仓流水体现为 `transfer_in`\n- 调拨途中（in_transit）的库存既不计入源仓 available 也不计入目标仓 available\n- 查询跨仓库存时，应明确调拨途中的数量，避免客户误以为\"库存消失\"\n\n## 盘点与对账\n\n- 盘点记录通过 `source_type=cycle_count` 的流水体现\n- 盘盈盘亏会触发 `adjust` 类流水，必须关联盘点单号\n- 每月末和季度末是高频对账期，应优先响应仓管的对账请求\n- 库存快照与总账差异超过 **1%** 时，视为对账异常\n- 对账异常应回溯最近 30 天的 `adjust` 和 `transfer` 流水，找出具体偏差来源",
+    "domain": "warehouse",
+    "scene": "inventory_query",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:43:30.319703",
+    "metadata": {
+      "source_name": "knowledge_warehouse",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/inventory_query/inventory_query_and_log_review.md",
+      "relative_path": "inventory_query/inventory_query_and_log_review.md",
+      "is_active": true,
+      "access_level": "staff",
+      "role_allowlist": [
+        "staff",
+        "warehouse_manager",
+        "admin"
+      ],
+      "warehouse_scope": [],
+      "checksum": "4199367a4f8b8d3a24a4f79f3638d687e3892317"
+    }
+  },
+  {
+    "doc_id": "warehouse:inventory_query_inventory_query_and_log_review",
+    "chunk_id": "warehouse:inventory_query_inventory_query_and_log_review#003",
+    "title": "库存查询、流水复核与跨仓协同指南",
+    "content": "## 批次与效期\n\n- 部分商品（辅料、胶水、美缝剂）按批次管理，带 `batch_no` 和 `produce_date`\n- 效期管理商品按 FEFO（先到期先出库）排序\n- 查询时可指定 `batch_no` 获得该批次的专属库存\n- 接近效期（剩余 < 60 天）的批次应优先出库或提示促销\n\n## 权限边界\n\n- 只能查询当前角色权限范围内的仓库与商品\n- 不得向无权限用户暴露他仓库存或敏感流水\n- `customer` 角色无法查询任何仓库详情，所有仓储字段不得回传客户端\n- 跨仓查询需要仓库管理员或 admin 角色，普通 staff 默认只能查本仓\n\n## 回答边界\n\n- 具体数量、规格、流水请直接引用工具返回字段，不得推测或拼凑\n- 用户没提供 `warehouse_id` 或 `item_id` 时，必须先追问再调工具\n- 流水数据用于辅助判断，不能替代人工盘点结论\n- 涉及高风险推断（如\"是不是被盗\"），应提示人工介入而非直接下结论",
+    "domain": "warehouse",
+    "scene": "inventory_query",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:43:30.319703",
+    "metadata": {
+      "source_name": "knowledge_warehouse",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/inventory_query/inventory_query_and_log_review.md",
+      "relative_path": "inventory_query/inventory_query_and_log_review.md",
+      "is_active": true,
+      "access_level": "staff",
+      "role_allowlist": [
+        "staff",
+        "warehouse_manager",
+        "admin"
+      ],
+      "warehouse_scope": [],
+      "checksum": "a5414a3fb664250eaf07c4f30df8c42eece44623"
     }
   },
   {
     "doc_id": "warehouse:inventory_rule_inventory_exception_identification",
     "chunk_id": "warehouse:inventory_rule_inventory_exception_identification#001",
-    "title": "库存异常判定与排查 SOP",
-    "content": "# 库存异常判定与排查 SOP\n\n## 核心判定原则\n\n库存异常不能只看某个时点的库存快照，必须同时结合近期出入库流水、订单占用和人工修正记录判断。\n\n## 常见异常信号\n\n- 当前库存与最近流水累计结果明显不一致\n- 日出库量超过近 30 天平均日出库量的 3 倍\n- 连续 3 天库存下降但没有对应订单或出库记录\n- 冲正、盘盈盘亏、手工修正频率异常升高\n\n## 标准排查步骤\n\n1. 先查当前库存，确认 `on_hand / available / reserved`\n2. 再查近 7-30 天库存流水，核对出入库来源\n3. 对照订单、调拨、冲正记录找出异常波峰或缺口\n4. 必要时暂停高风险出库，待人工复盘后再恢复\n\n## 回答约束\n\n- 若只有库存快照，没有流水依据，应明确说明“当前证据不足以判定异常”\n- 涉及是否允许继续出库时，应提示走审批或人工复核",
+    "title": "库存异常判定、盘点与排查 SOP",
+    "content": "# 库存异常判定、盘点与排查 SOP\n\n## 核心判定原则\n\n库存异常不能只看某个时点的库存快照，必须同时结合以下四类信息综合判断：\n\n- 近期出入库流水\n- 订单占用和调拨占用情况\n- 人工修正（冲正、盘盈、盘亏）记录\n- 同批次、同商品在其他仓库的库存变化\n\n仅凭单一信号（如\"今天库存突然少了\"）不足以下异常结论。\n\n## 异常信号分级\n\n### 一级异常（立即阻断）\n\n- 当前库存为负数\n- 订单占用量超过 `on_hand`\n- 连续 3 天库存下降但无任何出库流水\n- 同一 SKU 在 24 小时内被冲正 3 次以上\n\n### 二级异常（需要人工复盘）\n\n- 日出库量超过近 30 天平均日出库量的 **3 倍**\n- 近 7 天盘盈盘亏总量超过库存总量的 **2%**\n- 同一批次在多仓出现相反方向的库存变化（一仓暴增、一仓暴减）\n- 手工修正频率较上月环比上升 50% 以上\n\n### 三级异常（观察）\n\n- 单日库存波动 10% 以上，但有对应流水支持\n- 批次过期临近但仍有较大余量\n- 库存快照刷新延迟超过 **2 小时**",
     "domain": "warehouse",
     "scene": "inventory_rule",
     "source_type": "knowledge_base",
-    "version": "2026-04-17",
-    "effective_at": "2026-04-17T20:47:38.927418",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:44:48.176053",
     "metadata": {
       "source_name": "knowledge_warehouse",
       "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/inventory_rule/inventory_exception_identification.md",
@@ -528,19 +746,69 @@
         "admin"
       ],
       "warehouse_scope": [],
-      "checksum": "be3f1455cb2b4f6907ca2adc547ad42e53ddc027"
+      "checksum": "0985f7a0de110d87545a45f6304c7540576ccdbb"
+    }
+  },
+  {
+    "doc_id": "warehouse:inventory_rule_inventory_exception_identification",
+    "chunk_id": "warehouse:inventory_rule_inventory_exception_identification#002",
+    "title": "库存异常判定、盘点与排查 SOP",
+    "content": "## 标准排查步骤\n\n1. **取快照**：先查当前库存，确认 `on_hand / available / reserved / damaged`\n2. **查流水**：再查近 7-30 天库存流水，按 `source_type` 分组核对\n3. **对订单**：对照订单、调拨、冲正记录，找出异常波峰或缺口\n4. **跨仓比对**：如涉及调拨，检查源仓和目标仓是否都有对应流水\n5. **暂停高风险动作**：在人工复盘前，暂停该 SKU 的大额出库和调拨\n6. **出具报告**：排查结论必须引用具体流水 ID 和发生时间，不得模糊\n\n## 盘点流程\n\n- **全盘**：每季度末或重大盘点周期执行，涉及全仓全 SKU\n- **循环盘点（Cycle Count）**：按 ABC 分类，A 类商品月盘、B 类季盘、C 类年盘\n- **异常盘**：发现一级异常信号后立即触发的临时盘点\n- 盘点期间应临时冻结该 SKU 的出入库，避免并发写入干扰\n- 盘点单必须由双人执行并签字，不允许单人闭环\n\n## 冲正与修正\n\n- 冲正记录类型为 `adjust`，必须关联盘点单号或异常工单号\n- 正向冲正（盘盈）和负向冲正（盘亏）分别记录，不允许合并\n- 单次冲正数量超过 100 件或金额超过 1 万，需仓库主管审批\n- 连续 3 次冲正未查出根因的 SKU，升级为重点监控商品\n- 所有冲正记录不可删除，只能用反向冲正抵消",
+    "domain": "warehouse",
+    "scene": "inventory_rule",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:44:48.176053",
+    "metadata": {
+      "source_name": "knowledge_warehouse",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/inventory_rule/inventory_exception_identification.md",
+      "relative_path": "inventory_rule/inventory_exception_identification.md",
+      "is_active": true,
+      "access_level": "staff",
+      "role_allowlist": [
+        "staff",
+        "warehouse_manager",
+        "admin"
+      ],
+      "warehouse_scope": [],
+      "checksum": "29771bc5d5750ad4060cdf16ba2d7e29d66d8d91"
+    }
+  },
+  {
+    "doc_id": "warehouse:inventory_rule_inventory_exception_identification",
+    "chunk_id": "warehouse:inventory_rule_inventory_exception_identification#003",
+    "title": "库存异常判定、盘点与排查 SOP",
+    "content": "## 应急处置\n\n- 出现一级异常后，系统自动锁定该 SKU 的出库工具\n- 锁定期间，Agent 查询库存可以返回快照，但不得发起任何出库申请\n- 解锁需要仓库主管通过人工工单确认，不走自动审批\n- 异常处置完成后，必须产出复盘报告并归档至异常知识库\n\n## 与审批链路的协同\n\n- 存在未解决异常的 SKU，出库审批默认进入高风险分级\n- 异常期间即使走完审批流程，实际 WMS 执行仍会被阻断\n- 异常解除前，禁止跨仓调拨作为\"绕过异常\"的手段\n- Agent 回答客户或仓管询问时，应明确披露该 SKU 处于异常状态\n\n## 回答约束\n\n- 若只有库存快照、没有流水依据，应明确说\"当前证据不足以判定异常\"\n- 涉及是否允许继续出库时，应提示走审批或人工复核\n- 不得以推测结论作为异常判定的依据，必须引用具体流水\n- 对客户（customer）不得披露仓库异常细节，仅告知\"商品暂不可售\"",
+    "domain": "warehouse",
+    "scene": "inventory_rule",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:44:48.176053",
+    "metadata": {
+      "source_name": "knowledge_warehouse",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/inventory_rule/inventory_exception_identification.md",
+      "relative_path": "inventory_rule/inventory_exception_identification.md",
+      "is_active": true,
+      "access_level": "staff",
+      "role_allowlist": [
+        "staff",
+        "warehouse_manager",
+        "admin"
+      ],
+      "warehouse_scope": [],
+      "checksum": "70bf69922ec0395e8e0d3c3136df342a41f33dee"
     }
   },
   {
     "doc_id": "warehouse:outbound_approval_high_risk_outbound_policy",
     "chunk_id": "warehouse:outbound_approval_high_risk_outbound_policy#001",
-    "title": "高风险出库审批规范",
-    "content": "# 高风险出库审批规范\n\n## 适用场景\n\n以下仓储动作默认进入审批链路：\n\n- Agent 发起的出库申请\n- 大批量、异常时段、敏感商品或超权限的出库申请\n- 存在库存波动异常、历史纠纷或人工强制冲正关联的出库申请\n\n## 提交前必须具备的参数\n\n- `warehouse_id`\n- `item_id`\n- `qty`\n\n`reason` 建议一并提供，便于审批人判断业务背景。缺少核心参数时，Agent 必须先追问，不能直接提交审批。\n\n## 角色边界\n\n- `staff`、`warehouse_manager`：可以发起申请、查询状态\n- `admin`：可以通过 `/chat/interrupt/decision` 执行 `approve` 或 `reject`\n- 非仓储角色不得绕过权限直接触发审批工具\n\n## 审批与执行关系\n\n- 提交 `outbound_apply` 后，系统先生成待审批申请并返回 `need_approval`\n- `approve` 代表允许继续执行后续链路，不代表模型可以跳过审计直接改库存\n- `reject` 只会终止本次审批申请，不会自动扣库存，也不会继续执行出库\n\n## 幂等与重复提交\n\n- 系统应基于 `sessionId + tool + business_key` 生成 `idempotency_key`\n- 同一会话在短时间内重复提交相同仓库、商品和数量的申请，应视为同一审批请求并去重\n- 幂等命中时，应返回已有审批结果或当前状态，而不是再创建一张新单",
+    "title": "高风险出库审批完整规范",
+    "content": "# 高风险出库审批完整规范\n\n## 触发审批的场景\n\n以下仓储动作默认进入审批链路，由 `outbound_apply` 工具触发 interrupt：\n\n- Agent 发起的所有出库申请\n- 单笔数量超过 **500 件** 或金额超过 **10 万元** 的大批量出库\n- 发生在非工作时段（22:00 - 次日 08:00）的出库申请\n- 涉及敏感商品：岩板大板、保税商品、样板展示品\n- 已有未结审批或近 7 天存在被驳回记录的仓库-商品组合\n- 库存波动异常、近期有冲正或人工修正关联的出库\n\n## 提交前必须具备的参数\n\n- `warehouse_id`：出库仓库\n- `item_id`：商品 SKU\n- `qty`：出库数量，整数，不允许负数和零\n- `reason` 建议一并提供，便于审批人判断业务背景\n- `target` 如果涉及调拨或内部使用，应提供目标仓库或部门\n\n缺少核心参数时，Agent 必须先追问，**不能直接提交审批单**。\n\n## 风险分级与审批人\n\n- **低风险**：数量 < 100 件、金额 < 1 万，`warehouse_manager` 可单人审批\n- **中风险**：数量 100-500 件 或 金额 1-10 万，需要双人审批\n- **高风险**：数量 > 500 件 或 金额 > 10 万，需 `admin` + 仓库主管联审\n- **极高风险**：单笔 > 1000 件 或 金额 > 50 万，除联审外需要业务 VP 书面确认",
     "domain": "warehouse",
     "scene": "outbound_approval",
     "source_type": "knowledge_base",
-    "version": "2026-04-17",
-    "effective_at": "2026-04-17T20:47:38.927280",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:44:17.786772",
     "metadata": {
       "source_name": "knowledge_warehouse",
       "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/outbound_approval/high_risk_outbound_policy.md",
@@ -553,7 +821,57 @@
         "admin"
       ],
       "warehouse_scope": [],
-      "checksum": "2d3ed0c9a3333ca73f7395bc36097831908510a7"
+      "checksum": "f02a0c7b2c713248fa4501f668bbb2fb23a9455a"
+    }
+  },
+  {
+    "doc_id": "warehouse:outbound_approval_high_risk_outbound_policy",
+    "chunk_id": "warehouse:outbound_approval_high_risk_outbound_policy#002",
+    "title": "高风险出库审批完整规范",
+    "content": "## 角色边界\n\n- `staff`：可以发起申请、查询状态，不能审批\n- `warehouse_manager`：可以发起和审批中低风险申请，不能自审自批\n- `admin`：可以通过 `/chat/interrupt/decision` 执行 `approve` 或 `reject`\n- 非仓储角色不得绕过权限直接触发审批工具\n- 审批人和申请人必须是不同账号，系统会拒绝自审请求\n\n## 审批与执行关系\n\n- 提交 `outbound_apply` 后，系统生成待审批申请并返回 `need_approval`\n- `approve` 代表允许继续执行后续出库动作，但仍需走正式的仓库作业流程\n- `reject` 终止本次审批申请，不会自动扣库存、不会继续执行出库\n- 审批通过后的实际出库仍需经过 WMS 人工确认或二次校验\n- 系统不允许 Agent 直接改库存，所有动作都走 WMS 标准接口\n\n## 审批 SLA 与升级\n\n- 低风险审批：首次响应 **4 小时**，超时自动升级到双人审批\n- 中风险审批：首次响应 **2 小时**，超时升级到 admin\n- 高风险审批：首次响应 **1 小时**，超时直接进入应急联审\n- 极高风险审批：首次响应 **30 分钟**，超时自动通知值班主管和 VP\n- 审批超时默认视为搁置，不会自动 approve 或 reject",
+    "domain": "warehouse",
+    "scene": "outbound_approval",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:44:17.786772",
+    "metadata": {
+      "source_name": "knowledge_warehouse",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/outbound_approval/high_risk_outbound_policy.md",
+      "relative_path": "outbound_approval/high_risk_outbound_policy.md",
+      "is_active": true,
+      "access_level": "staff",
+      "role_allowlist": [
+        "staff",
+        "warehouse_manager",
+        "admin"
+      ],
+      "warehouse_scope": [],
+      "checksum": "79d630d43b59e4028d30869693826ebbf82f5187"
+    }
+  },
+  {
+    "doc_id": "warehouse:outbound_approval_high_risk_outbound_policy",
+    "chunk_id": "warehouse:outbound_approval_high_risk_outbound_policy#003",
+    "title": "高风险出库审批完整规范",
+    "content": "## 幂等与重复提交\n\n- 系统基于 `sessionId + tool + business_key` 生成 `idempotency_key`\n- `business_key` 由 `warehouse_id + item_id + qty + date` 哈希得到\n- 同一会话短时间内重复提交相同参数，视为同一审批请求并去重\n- 幂等命中时返回已有审批结果或当前状态，不新建审批单\n- 跨会话或跨日的相同申请不适用幂等，会视为新申请\n\n## 驳回与重新提交\n\n- `reject` 通常附带 `comment`，说明驳回理由\n- 申请人可根据驳回原因调整参数后重新提交\n- 连续 3 次被同一审批人驳回的组合，系统标记为黄标，需要 admin 介入\n- 黄标申请即使参数合法也会被自动暂停，由业务主管人工判定\n\n## 日志与审计\n\n- 所有审批动作（apply/approve/reject）落 `audit_log` 表\n- 审计字段包括操作人、时间戳、session_id、参数摘要、决策和理由\n- 审计记录保留至少 **5 年**，对接合规审查\n- 禁止以任何方式修改或删除历史审计记录\n\n## 回答边界\n\n- 审批状态、待办申请数量、具体决策人由审批工具查询，不得口头承诺\n- 涉及合规风险的申请，必须走人工判断，不允许 Agent 自动决策\n- 一旦 interrupt 触发，Agent 必须等待 `/chat/interrupt/decision`，不得伪造通过",
+    "domain": "warehouse",
+    "scene": "outbound_approval",
+    "source_type": "knowledge_base",
+    "version": "2026-04-18",
+    "effective_at": "2026-04-18T19:44:17.786772",
+    "metadata": {
+      "source_name": "knowledge_warehouse",
+      "source_path": "/Users/rabbittank1001/IdeaProjects/lqzc/tao-ai/knowledge/warehouse/outbound_approval/high_risk_outbound_policy.md",
+      "relative_path": "outbound_approval/high_risk_outbound_policy.md",
+      "is_active": true,
+      "access_level": "staff",
+      "role_allowlist": [
+        "staff",
+        "warehouse_manager",
+        "admin"
+      ],
+      "warehouse_scope": [],
+      "checksum": "41878c1c98eb970226281184dc99d60d4f619e03"
     }
   },
   {

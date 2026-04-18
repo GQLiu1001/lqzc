@@ -17,6 +17,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.agents._middleware import MALL_BLOCKED_TOOLS, ToolBlocklistMiddleware
 from app.core.trace import trace_in, trace_out
 from app.schemas.agent import DomainAgentResult
 from app.tools.rag_tools import shared_policy_rag_search
@@ -49,6 +50,15 @@ MALL_SYSTEM_PROMPT = """\
 4. 如果当前问题无法在商城域内解决，返回明确的降级说明，不要编造。
 5. 优先复用已命中的 Skill 指引，再决定是否调用工具。
 6. 回答面向终端用户时保持简洁、明确、可执行。
+
+工具调用纪律（非常重要）：
+- 对于问候、感谢、寒暄、自我介绍、闲聊等**无实际业务诉求**的消息，直接用自然语言回答，禁止调用任何工具。
+- 商城域是**单层 Agent**，不存在可委派的业务子代理。即使系统里出现 `task` / `general-purpose` 等内置入口，
+  **一律禁止调用**；同样禁止调用 `write_todos`、`ls`、`read_file`、`edit_file`、`glob`、`grep`、`execute` 等与业务无关的内置工具。
+- 只有在明确需要查询订单、商品、售后政策、物流状态、RAG 知识库等业务信息时，才调用下列业务工具：
+  `my_order_query`、`order_detail_query`、`product_consult_query`、`aftersale_policy_query`、
+  `logistics_trace_query`、`mall_rag_search`、`shared_policy_rag_search`、`get_top_sales`、`search_inventory`。
+- 工具调用前必须确认自己确实需要它的返回值；若一个问题仅凭已有上下文即可回答，直接回答。
 """
 
 _MALL_TOOLS = [
@@ -80,6 +90,7 @@ class MallAgent:
             tools=_MALL_TOOLS,
             system_prompt=MALL_SYSTEM_PROMPT,
             skills=_MALL_SKILLS,
+            middleware=(ToolBlocklistMiddleware(blocked=MALL_BLOCKED_TOOLS),),
             checkpointer=checkpointer,
             backend=FilesystemBackend(root_dir=str(_SKILLS_ROOT.parent)),
             name="mall_agent",

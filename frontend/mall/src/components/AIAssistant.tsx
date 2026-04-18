@@ -30,6 +30,51 @@ interface TaoChatResponse {
   };
 }
 
+type SseEvent =
+  | { event: "start"; data: { sessionId: string } }
+  | { event: "route"; data: { route?: string | null; reason?: string | null } }
+  | { event: "delta"; data: { text: string } }
+  | { event: "tool"; data: { name: string } }
+  | { event: "final"; data: TaoChatResponse }
+  | { event: "error"; data: { code: string; message: string } }
+  | { event: "done"; data: Record<string, never> };
+
+async function* parseSseStream(
+  response: Response,
+): AsyncGenerator<SseEvent, void, unknown> {
+  if (!response.body) return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          dataLine += line.slice(5).trim();
+        }
+      }
+      if (!dataLine) continue;
+      try {
+        const data = JSON.parse(dataLine);
+        yield { event: eventName, data } as SseEvent;
+      } catch {
+        /* ignore malformed frame */
+      }
+    }
+  }
+}
+
 const AIAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -130,10 +175,11 @@ const AIAssistant = () => {
       
       abortControllerRef.current = new AbortController();
 
-      const response = await fetch("/pyapi/chat", {
+      const response = await fetch("/pyapi/chat/stream", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "text/event-stream",
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -147,33 +193,85 @@ const AIAssistant = () => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const result = (await response.json()) as TaoChatResponse;
-      const data = result.data;
-      if (data?.sessionId) {
-        localStorage.setItem('ai_chat_session_id', data.sessionId);
-      }
-      const reply = (data?.answer || data?.errorMessage || "抱歉，我暂时没有可用回复，请稍后再试。").trim();
 
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === aiMessageId
-            ? {
-                ...msg,
-                content: reply,
-                route: data?.route ?? null,
-                status: data?.status ?? "success",
-                toolCalls: data?.toolCalls ?? [],
-              }
-            : msg
-        )
-      );
+      let streamed = "";
+      let collectedRoute: string | null = null;
+      const collectedTools = new Set<string>();
+      let errorText: string | null = null;
+
+      for await (const ev of parseSseStream(response)) {
+        if (ev.event === "start") {
+          if (ev.data.sessionId) {
+            localStorage.setItem('ai_chat_session_id', ev.data.sessionId);
+          }
+        } else if (ev.event === "route") {
+          collectedRoute = ev.data.route ?? null;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMessageId ? { ...msg, route: collectedRoute } : msg,
+            ),
+          );
+        } else if (ev.event === "tool") {
+          collectedTools.add(ev.data.name);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMessageId
+                ? { ...msg, toolCalls: Array.from(collectedTools) }
+                : msg,
+            ),
+          );
+        } else if (ev.event === "delta") {
+          streamed += ev.data.text;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMessageId ? { ...msg, content: streamed } : msg,
+            ),
+          );
+        } else if (ev.event === "final") {
+          const data = ev.data.data;
+          if (data?.sessionId) {
+            localStorage.setItem('ai_chat_session_id', data.sessionId);
+          }
+          const reply = (
+            data?.answer ||
+            data?.errorMessage ||
+            streamed ||
+            "抱歉，我暂时没有可用回复，请稍后再试。"
+          ).trim();
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMessageId
+                ? {
+                    ...msg,
+                    content: reply,
+                    route: data?.route ?? collectedRoute,
+                    status: data?.status ?? "success",
+                    toolCalls: data?.toolCalls ?? Array.from(collectedTools),
+                  }
+                : msg,
+            ),
+          );
+        } else if (ev.event === "error") {
+          errorText = ev.data.message || "流式会话异常";
+        }
+      }
+
+      if (errorText) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === aiMessageId
+              ? { ...msg, content: streamed || errorText!, status: "error" }
+              : msg,
+          ),
+        );
+      }
       setIsLoading(false);
 
     } catch (error) {
       console.error('发送消息失败:', error);
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === aiMessageId 
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === aiMessageId
             ? { ...msg, content: "抱歉，我遇到了一些问题，请稍后再试。" }
             : msg
         )

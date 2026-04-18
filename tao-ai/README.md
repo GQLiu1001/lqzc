@@ -195,7 +195,8 @@ agent/
 │   │   ├── parser.py               # markdown / pdf / doc 文档解析
 │   │   ├── chunker.py              # chunk 切分策略
 │   │   ├── retriever.py            # dense / keyword / hybrid recall
-│   │   ├── reranker.py             # rerank
+│   │   ├── reranker.py             # rerank（词面 + 可选 cross-encoder）
+│   │   ├── cross_reranker.py       # Qwen3-Reranker (ollama) 生成式 cross-encoder
 │   │   ├── filters.py              # domain / role / tenant / warehouseScope 过滤
 │   │   ├── formatter.py            # context pack / citation pack
 │   │   └── constants.py
@@ -493,7 +494,68 @@ Authorization 请求头：
 }
 ```
 
-# 2.1 审批恢复接口
+# 2.1 `/chat/stream` 流式接口（SSE）
+
+endpoint：`POST /chat/stream`
+
+- 请求体与 `/chat` 完全一致（`sessionId / messageId / message`），鉴权同走 `Authorization: Bearer <token>`
+- 响应为 `text/event-stream`，每帧 `event: <type>\ndata: <json>\n\n`
+- Supervisor 内部走 `graph.astream(stream_mode=["updates","messages"])`：路由节点 LLM 的 token 会被过滤掉，只把 Mall/Warehouse Agent 生成的最终回答 token 推给前端
+
+事件矩阵（按时间顺序）：
+
+| event     | data                                                                | 说明                                          |
+|-----------|---------------------------------------------------------------------|---------------------------------------------|
+| `start`   | `{ "sessionId": "..." }`                                            | 连接建立，首次回传 sessionId（供新会话持久化）          |
+| `route`   | `{ "route": "mall\|warehouse\|fallback", "reason": "..." }`         | Supervisor 三级路由给出判定                    |
+| `tool`    | `{ "name": "my_order_query" }`                                      | 领域 Agent 报告的工具调用（每个工具只推一次）        |
+| `delta`   | `{ "text": "您最" }`                                                  | 最终回答的 token 片段，客户端追加到消息 content         |
+| `final`   | `/chat` 的完整响应体（`code / message / data`）                        | 收敛态，`answer / toolCalls / status / interrupt` 对齐同步接口 |
+| `error`   | `{ "code": "INTERNAL_ERROR", "message": "..." }`                    | 流式过程中异常，随后紧跟 `done`                   |
+| `done`    | `{}`                                                                | 终止标记，客户端可关闭连接                         |
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant API as /chat/stream
+    participant SUP as Supervisor
+    participant AG as Mall/Warehouse Agent
+
+    FE->>API: POST (Authorization + body)
+    API-->>FE: event:start {sessionId}
+    API->>SUP: astream(state, stream_mode=[updates,messages])
+    SUP->>SUP: route_node（token 不外推）
+    API-->>FE: event:route {route,reason}
+    SUP->>AG: domain_node
+    AG-->>API: tool_calls（经 updates）
+    API-->>FE: event:tool {name} * N
+    AG-->>API: LLM token（经 messages）
+    API-->>FE: event:delta {text} * N
+    SUP->>SUP: finalize_node
+    API-->>FE: event:final {code,message,data}
+    API-->>FE: event:done {}
+```
+
+请求示例（curl）：
+
+```bash
+curl -N -X POST http://localhost:8000/chat/stream \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"sessionId":"chat-session-001","messageId":"msg-001","message":"帮我查询最近的订单"}'
+```
+
+前端消费规范：
+
+- 使用 `fetch + ReadableStream` 自行解析（`EventSource` 不支持 POST 与自定义 `Authorization`）
+- 按 `delta.text` 追加到当前 AI 气泡的 `content`，收到 `final` 再用其 `answer / toolCalls / route / status / interrupt` 覆盖
+- 审批分支：`final.data.status == "need_approval"` 时仍然按原方式走 `POST /chat/interrupt/decision` 恢复（审批接口保持同步）
+- 音频埋点：后端会在 `event_source` 结束后统一落一条 `audit_log`（`tool_args.stream=true`），前端无需单独上报
+
+非流式 `/chat` 接口保持向下兼容，已上线的客户端无需改动。
+
+# 2.2 审批恢复接口
 
 POST /chat/interrupt/decision
 

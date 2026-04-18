@@ -83,6 +83,47 @@ const appendAssistantMessage = (payload: TaoChatResponse['data']) => {
   pendingInterrupt.value = payload.interrupt ?? null;
 };
 
+type SseFrame =
+  | { event: 'start'; data: { sessionId: string } }
+  | { event: 'route'; data: { route?: string | null; reason?: string | null } }
+  | { event: 'delta'; data: { text: string } }
+  | { event: 'tool'; data: { name: string } }
+  | { event: 'final'; data: TaoChatResponse }
+  | { event: 'error'; data: { code: string; message: string } }
+  | { event: 'done'; data: Record<string, never> };
+
+async function* parseSseStream(response: Response): AsyncGenerator<SseFrame, void, unknown> {
+  if (!response.body) return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const frame = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      let eventName = 'message';
+      let dataLine = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLine += line.slice(5).trim();
+        }
+      }
+      if (!dataLine) continue;
+      try {
+        yield { event: eventName, data: JSON.parse(dataLine) } as SseFrame;
+      } catch (err) {
+        console.warn('SSE frame parse failed', err);
+      }
+    }
+  }
+}
+
 const resetConversation = () => {
   sessionId.value = `consul-${Date.now()}`;
   localStorage.setItem(sessionStorageKey, sessionId.value);
@@ -107,10 +148,30 @@ const sendMessage = async () => {
   inputValue.value = '';
   isSending.value = true;
 
+  const assistantId = generateId();
+  const assistantMessage: ChatMessage = {
+    id: assistantId,
+    role: 'assistant',
+    content: '',
+    createdAt: new Date().toLocaleTimeString(),
+    route: null,
+    status: 'streaming',
+    toolCalls: [],
+  };
+  messages.value.push(assistantMessage);
+
+  const updateAssistant = (patch: Partial<ChatMessage>) => {
+    const target = messages.value.find((msg) => msg.id === assistantId);
+    if (target) Object.assign(target, patch);
+  };
+
   try {
-    const response = await fetch('/pyapi/chat', {
+    const response = await fetch('/pyapi/chat/stream', {
       method: 'POST',
-      headers: authHeaders(),
+      headers: {
+        ...authHeaders(),
+        Accept: 'text/event-stream',
+      },
       body: JSON.stringify({
         sessionId: sessionId.value,
         messageId,
@@ -118,24 +179,60 @@ const sendMessage = async () => {
       }),
     });
 
-    const result = (await response.json()) as TaoChatResponse;
-    if (!response.ok || result.code !== 200) {
-      throw new Error(result.data?.errorMessage || result.message || `请求失败: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`请求失败: ${response.status}`);
     }
 
-    if (result.data.sessionId) {
-      sessionId.value = result.data.sessionId;
-      localStorage.setItem(sessionStorageKey, result.data.sessionId);
+    let streamed = '';
+    const tools = new Set<string>();
+    let errorMessage: string | null = null;
+    let finalData: TaoChatResponse['data'] | null = null;
+
+    for await (const ev of parseSseStream(response)) {
+      if (ev.event === 'start') {
+        if (ev.data.sessionId) {
+          sessionId.value = ev.data.sessionId;
+          localStorage.setItem(sessionStorageKey, ev.data.sessionId);
+        }
+      } else if (ev.event === 'route') {
+        updateAssistant({ route: ev.data.route ?? null });
+      } else if (ev.event === 'tool') {
+        tools.add(ev.data.name);
+        updateAssistant({ toolCalls: Array.from(tools) });
+      } else if (ev.event === 'delta') {
+        streamed += ev.data.text;
+        updateAssistant({ content: streamed });
+      } else if (ev.event === 'final') {
+        finalData = ev.data.data;
+      } else if (ev.event === 'error') {
+        errorMessage = ev.data.message || '流式会话异常';
+      }
     }
-    appendAssistantMessage(result.data);
+
+    if (errorMessage && !finalData) {
+      throw new Error(errorMessage);
+    }
+
+    if (finalData) {
+      if (finalData.sessionId) {
+        sessionId.value = finalData.sessionId;
+        localStorage.setItem(sessionStorageKey, finalData.sessionId);
+      }
+      updateAssistant({
+        content: (finalData.answer || finalData.errorMessage || streamed || '当前没有可展示的回复。').trim(),
+        route: finalData.route ?? null,
+        status: finalData.status,
+        toolCalls: finalData.toolCalls ?? Array.from(tools),
+      });
+      pendingInterrupt.value = finalData.interrupt ?? null;
+    } else {
+      updateAssistant({ status: 'success' });
+    }
   } catch (error) {
     console.error('AI 对话失败:', error);
     ElMessage.error((error as Error).message || 'AI 对话失败');
-    messages.value.push({
-      id: generateId(),
-      role: 'assistant',
+    updateAssistant({
       content: '当前请求失败，请检查 FastAPI 服务与登录态是否正常。',
-      createdAt: new Date().toLocaleTimeString(),
       status: 'error',
     });
   } finally {

@@ -23,6 +23,7 @@ from deepagents.backends import FilesystemBackend
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Command, Interrupt
 
+from app.agents._middleware import WAREHOUSE_BLOCKED_TOOLS, ToolBlocklistMiddleware
 from app.agents.warehouse_agent.approval_subagent import build_approval_subagent
 from app.agents.warehouse_agent.inventory_subagent import build_inventory_subagent
 from app.schemas.agent import DomainAgentResult
@@ -51,7 +52,14 @@ WAREHOUSE_SYSTEM_PROMPT = """\
 - warehouse_inventory_subagent: 处理库存查询、库存流水、库存异常分析
 - warehouse_approval_subagent: 处理出库申请、审批状态查询（高风险操作会触发审批中断）
 
-根据问题类型选择合适的子代理，不要自己直接调用底层工具。"""
+根据问题类型选择合适的子代理，不要自己直接调用底层工具。
+
+工具调用纪律（非常重要）：
+- 对于问候、感谢、寒暄、自我介绍、闲聊等**无实际业务诉求**的消息，直接用自然语言回答，禁止调用任何工具。
+- `task` 工具**只允许**派发给上述两个业务 subagent（`warehouse_inventory_subagent` / `warehouse_approval_subagent`）；
+  禁止派发给 `general-purpose` 或其他 Deep Agents 默认提供的通用子代理。
+- 同样禁止调用 `write_todos`、`ls`、`read_file`、`edit_file`、`glob`、`grep`、`execute` 等与业务无关的内置工具。
+- 工具调用前必须确认自己确实需要它的返回值；若一个问题仅凭已有上下文即可回答，直接回答。"""
 
 
 class WarehouseAgent:
@@ -63,13 +71,25 @@ class WarehouseAgent:
         inventory_sub = build_inventory_subagent()
         approval_sub = build_approval_subagent()
 
+        # 覆盖 Deep Agents 默认注入的 `general-purpose` subagent：把它的 description 改成
+        # "此子代理不可用"，彻底消除 qwen 之类弱模型对 task 的幻觉调用。
+        decoy_general_purpose = {
+            "name": "general-purpose",
+            "description": (
+                "【请勿调用】此通用子代理在仓储域下不可用；"
+                "所有查询只允许派发给 warehouse_inventory_subagent 或 warehouse_approval_subagent。"
+            ),
+            "system_prompt": "直接回复：当前仓储域未启用通用子代理，请选择业务 subagent。",
+        }
+
         self._agent = create_deep_agent(
             model=model,
             system_prompt=WAREHOUSE_SYSTEM_PROMPT,
-            subagents=[inventory_sub, approval_sub],
+            subagents=[decoy_general_purpose, inventory_sub, approval_sub],
             skills=[
                 "/skills/shared/response_format/",
             ],
+            middleware=(ToolBlocklistMiddleware(blocked=WAREHOUSE_BLOCKED_TOOLS),),
             checkpointer=checkpointer,
             backend=FilesystemBackend(root_dir=str(_SKILLS_ROOT.parent)),
             name="warehouse_agent",

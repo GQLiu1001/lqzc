@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     rag_chunk_overlap: int = 120
     rag_min_score: float = 0.08
     rag_min_rerank_score: float = 0.12
+    rag_reranker_mode: str = "lexical"
+    rag_reranker_model: str = "dengcao/Qwen3-Reranker-8B:Q3_K_M"
+    rag_reranker_concurrency: int = 4
+    rag_reranker_timeout_seconds: float = 12.0
 
     mcp_server_url: str = "http://localhost:8001/mcp"
     mcp_timeout_seconds: int = 20

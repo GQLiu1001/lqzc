@@ -61,7 +61,7 @@ class RAGService:
 
         lexical_hits = retriever.recall_candidates(normalized_req, filtered_chunks, rewritten_query)
         merged_hits = _merge_hits(milvus_hits, lexical_hits)
-        reranked = reranker.rerank_hits(query, merged_hits, normalized_req.top_k)
+        reranked = await reranker.rerank_hits_async(query, merged_hits, normalized_req.top_k)
         search_mode = _resolve_search_mode(milvus_hits, lexical_hits)
 
         no_hit = not reranked

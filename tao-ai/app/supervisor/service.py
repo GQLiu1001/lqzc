@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import TYPE_CHECKING
+from typing import AsyncIterator, TYPE_CHECKING
 
+from langchain_core.messages import AIMessageChunk
 from langchain_ollama import ChatOllama
 
 from app.core.runtime_context import set_session_id, set_user_context
@@ -11,11 +12,13 @@ from app.agents.warehouse_agent import WarehouseAgent
 from app.core.config import settings
 from app.schemas.chat import ChatResponse, ChatResponseData
 from app.schemas.user import UserContext
-from app.core.trace import trace_in, trace_out
+from app.core.trace import trace_error, trace_in, trace_out
 from app.supervisor.graph import build_graph
 
 if TYPE_CHECKING:
     from langgraph.checkpoint.base import BaseCheckpointSaver
+
+_STREAM_SKIP_NODES = {"route", "finalize", "fallback"}
 
 
 class SupervisorService:
@@ -94,6 +97,134 @@ class SupervisorService:
             tool_calls=response.data.tool_calls,
         )
         return response
+
+    async def astream(
+        self,
+        session_id: str,
+        message: str,
+        user_context: UserContext,
+    ) -> AsyncIterator[dict]:
+        """Stream supervisor execution as a sequence of SSE-friendly events.
+
+        Event shapes:
+          - start  {sessionId}
+          - route  {route, reason}
+          - delta  {text}             # per LLM token from domain agents
+          - tool   {name}             # emitted when a domain node reports tool_calls
+          - final  ChatResponse body (code/message/data) — same shape as /chat
+          - error  {code, message}
+          - done   {}
+        """
+        started = perf_counter()
+        trace_in(
+            "supervisor.astream",
+            session_id=session_id,
+            thread_id=session_id,
+            checkpoint_ns="supervisor",
+            user_context=user_context,
+            message=message[:200],
+        )
+
+        state = {
+            "session_id": session_id,
+            "message": message,
+            "user_context": user_context.model_dump(),
+        }
+        config = {
+            "configurable": {
+                "thread_id": session_id,
+                "checkpoint_ns": "supervisor",
+            },
+        }
+
+        yield {"event": "start", "data": {"sessionId": session_id}}
+
+        final_state: dict = {}
+        emitted_tools: set[str] = set()
+        try:
+            async for mode, chunk in self._graph.astream(
+                state,
+                config=config,
+                stream_mode=["updates", "messages"],
+            ):
+                if mode == "updates":
+                    for node, update in chunk.items():
+                        if not isinstance(update, dict):
+                            continue
+                        if node == "route":
+                            yield {
+                                "event": "route",
+                                "data": {
+                                    "route": update.get("route"),
+                                    "reason": update.get("route_reason"),
+                                },
+                            }
+                        elif node in ("mall", "warehouse", "fallback"):
+                            for tool_name in update.get("tool_calls") or []:
+                                if tool_name in emitted_tools:
+                                    continue
+                                emitted_tools.add(tool_name)
+                                yield {"event": "tool", "data": {"name": tool_name}}
+                        if node == "finalize":
+                            final_state = update
+                elif mode == "messages":
+                    msg_chunk, meta = chunk
+                    if not isinstance(msg_chunk, AIMessageChunk):
+                        continue
+                    node = (meta or {}).get("langgraph_node", "")
+                    if node in _STREAM_SKIP_NODES:
+                        continue
+                    text = msg_chunk.content or ""
+                    if isinstance(text, list):
+                        text = "".join(
+                            part.get("text", "") if isinstance(part, dict) else str(part)
+                            for part in text
+                        )
+                    if text:
+                        yield {"event": "delta", "data": {"text": text}}
+        except Exception as exc:
+            trace_error(
+                "supervisor.astream",
+                exc,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+            )
+            yield {
+                "event": "error",
+                "data": {"code": "INTERNAL_ERROR", "message": str(exc)},
+            }
+            yield {"event": "done", "data": {}}
+            return
+
+        status = final_state.get("status", "success")
+        code = 403 if status == "forbidden" else 200
+        msg = "forbidden" if status == "forbidden" else "success"
+        response = ChatResponse(
+            code=code,
+            message=msg,
+            data=ChatResponseData(
+                sessionId=final_state.get("session_id", session_id),
+                route=final_state.get("route", "fallback"),
+                answer=final_state.get("answer"),
+                toolCalls=final_state.get("tool_calls", []),
+                status=status,
+                interrupt=final_state.get("interrupt"),
+                errorCode=final_state.get("error") if status in ("forbidden", "error") else None,
+                errorMessage=final_state.get("answer") if status == "forbidden" else None,
+            ),
+        )
+        trace_out(
+            "supervisor.astream",
+            response,
+            elapsed_ms=int((perf_counter() - started) * 1000),
+            route=response.data.route,
+            status=response.data.status,
+            tool_calls=response.data.tool_calls,
+        )
+        yield {
+            "event": "final",
+            "data": response.model_dump(mode="json", by_alias=True),
+        }
+        yield {"event": "done", "data": {}}
 
     async def resume(
         self,
