@@ -2230,6 +2230,63 @@ Milvus 官方文档支持 metadata filtering，而且过滤可以直接和 ANN �
 先召回 20~30 个 chunk，再 rerank 到 5~8 个。
 不要让 Agent 直接吃原始 top20，不然上下文噪音会很高。
 
+当前项目提供两档 reranker，通过 `.env` 的 `RAG_RERANKER_MODE` 切换：
+
+| 模式 | 实现 | 延迟 | 精度 |
+| --- | --- | --- | --- |
+| `lexical`（默认） | 纯规则：`hit.score*0.55 + overlap_ratio*0.2 + title_ratio*0.1 + bonus` | <10ms | 受限于字面 overlap，大文档 H1 变长会稀释分数 |
+| `qwen` | Qwen3-Reranker（ollama 本地跑，`dengcao/Qwen3-Reranker-8B:Q3_K_M`） | 每候选 2-3s，并发 4 | 语义理解，yes/no 分桶清晰 |
+
+#### 为什么需要 cross-encoder
+
+词面 rerank 的两个结构性短板：
+
+- H1 标题变长 → `title_ratio = overlap / title_tokens` 分母变大，分数被稀释
+- 同主题不同角度的章节（发票红字 / 升级投诉）在字面上不含 query 核心词，`overlap_ratio` 低
+
+大文档 + 多角度章节的语料里，词面 rerank 会给相关 chunk 打低分。cross-encoder 直接看整体语义，能识别"红字发票属于退款子流程"这种非字面关联。
+
+#### Qwen3-Reranker 工作原理
+
+Ollama 不暴露 token logprobs，所以采用**二元信号 + 词面分 tiebreak**：
+
+```text
+prompt: "Judge whether the Document meets the requirements based on the Query.
+         Note that the answer can only be 'yes' or 'no'."
+<Query>: 退款政策是怎样的？
+<Document>: 商品签收后 7 日内可联系客服发起退款申请...
+→ model 输出 "yes" 或 "no"
+```
+
+最终分数 = `0.7 × qwen_binary + 0.3 × lexical_rerank`：
+
+- 模型说 yes：final ≈ 0.7-0.85（上浮到高分区）
+- 模型说 no：final ≈ 0.02-0.10（压到底部被 top_k 淘汰）
+- 模型超时/解析失败：降级为纯 lexical 分数，不中断检索
+
+#### 实测对比（5 query benchmark）
+
+| Query | Lexical | +Qwen Reranker | 提升 |
+| --- | --- | --- | --- |
+| 退款政策是怎样的？ | 0.251 | 0.775 | 3.1× |
+| 货物破损了怎么办？ | 0.212 | 0.744 | 3.5× |
+| 偏远地区运费怎么算？ | 0.338 | 0.801 | 2.4× |
+| 怎么判定库存异常？ | 0.401 | 0.820 | 2.0× |
+| 大批量出库谁审批？ | 0.332 | 0.858 | 2.6× |
+
+代价：RAG 阶段耗时从 ~0.3s 涨到 4-14s（取决于候选数 × 2-3s/pair，concurrency=4）。相对于 qwen3:8b 生成的 60-80s，占比不大。
+
+#### 相关配置
+
+```env
+RAG_RERANKER_MODE=qwen              # lexical | qwen
+RAG_RERANKER_MODEL=dengcao/Qwen3-Reranker-8B:Q3_K_M
+RAG_RERANKER_CONCURRENCY=4          # 并发请求 ollama 的 pair 数
+RAG_RERANKER_TIMEOUT_SECONDS=15     # 单次 pair 超时
+```
+
+出问题时切回 `lexical` 即可立即回退，无需改代码。
+
 ### 5）context pack
 
 把最终文档片段整理成统一格式，例如：
