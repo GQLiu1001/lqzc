@@ -46,6 +46,17 @@ _ANSWER_PROMPT = """\
 回答："""
 
 
+def _unique_doc_ids(doc_ids: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for doc_id in doc_ids:
+        if doc_id in seen:
+            continue
+        seen.add(doc_id)
+        unique.append(doc_id)
+    return unique
+
+
 async def _generate_grounded_answer(question: str, context_text: str) -> str:
     if not (context_text or "").strip():
         return "当前知识库未检索到足够依据。"
@@ -67,33 +78,37 @@ def _compute_retrieval_metrics(
     k_recall: int = 10,
     k_ndcg: int = 10,
 ) -> RetrievalMetrics:
+    # Retrieval is chunk-based, so the same doc_id may appear multiple times.
+    # Offline metrics should score on unique document ranking instead.
+    ranked_doc_ids = _unique_doc_ids(retrieved)
+
     if not expected:
         # No ground truth → we can only report whether retrieval returned anything.
-        return RetrievalMetrics(no_hit=not retrieved, retrieved_doc_ids=retrieved)
+        return RetrievalMetrics(no_hit=not ranked_doc_ids, retrieved_doc_ids=ranked_doc_ids)
 
     expected_set = set(expected)
 
     hit_at_k: int | None = None
-    for idx, doc_id in enumerate(retrieved[:k_hit], start=1):
+    for idx, doc_id in enumerate(ranked_doc_ids[:k_hit], start=1):
         if doc_id in expected_set:
             hit_at_k = idx
             break
 
     mrr = 0.0
-    for idx, doc_id in enumerate(retrieved, start=1):
+    for idx, doc_id in enumerate(ranked_doc_ids, start=1):
         if doc_id in expected_set:
             mrr = 1.0 / idx
             break
 
-    top_recall = retrieved[:k_recall]
+    top_recall = ranked_doc_ids[:k_recall]
     recall = (
-        sum(1 for d in top_recall if d in expected_set) / len(expected_set)
+        len({d for d in top_recall if d in expected_set}) / len(expected_set)
         if expected_set
         else 0.0
     )
 
     dcg = 0.0
-    for idx, doc_id in enumerate(retrieved[:k_ndcg], start=1):
+    for idx, doc_id in enumerate(ranked_doc_ids[:k_ndcg], start=1):
         rel = 1.0 if doc_id in expected_set else 0.0
         dcg += rel / math.log2(idx + 1)
     ideal_len = min(len(expected_set), k_ndcg)
@@ -106,8 +121,8 @@ def _compute_retrieval_metrics(
         recall=round(recall, 4),
         mrr=round(mrr, 4),
         ndcg=round(ndcg, 4),
-        no_hit=not retrieved,
-        retrieved_doc_ids=retrieved,
+        no_hit=not ranked_doc_ids,
+        retrieved_doc_ids=ranked_doc_ids,
     )
 
 

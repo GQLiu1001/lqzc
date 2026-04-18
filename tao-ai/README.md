@@ -2564,6 +2564,71 @@ Eval 结果统一写入 PostgreSQL，供离线回归、失败样本回收和人�
 
 若核心指标低于预设阈值，则该版本不得视为通过。
 
+#### 指标含义（白话）
+
+假设一条样本的"正确答案"应来自文档 D，系统召回了前 10 条候选：
+
+| 指标 | 含义 | 取值范围 |
+|---|---|---|
+| `Hit@5` | 前 5 条里**是否**出现 D（命中=1，未命中=0） | 0 / 1，聚合后为命中率 |
+| `Recall@10` | 所有正确文档中有多少比例进入前 10 | 0.0 ~ 1.0 |
+| `MRR` | D **排第几的倒数**（第 1 = 1.0，第 3 = 0.33，第 10 = 0.1） | 0.0 ~ 1.0 |
+| `NDCG@10` | 前 10 条整体排序质量（正确答案越靠前分越高） | 0.0 ~ 1.0 |
+| `Correctness` | LLM judge 给的答案正确性 | 0.0 ~ 1.0 |
+| `Groundedness` | 答案是否有 RAG 证据支撑、没有幻觉 | 0.0 ~ 1.0 |
+| `PermissionSafety` | 答案是否越权泄露非权限数据 | 0.0 ~ 1.0 |
+
+检索层四项 (`Hit@5` / `Recall@10` / `MRR` / `NDCG@10`) 只反映**文档排序质量**，不看回答内容；回答层与安全层才评"模型有没有瞎编、有没有越权"。
+
+#### 快速跑一次
+
+```bash
+# 前置：PostgreSQL / Milvus / Ollama 已启动，uvicorn 已拉起
+curl -s -X POST http://127.0.0.1:8000/eval/offline/run \
+  -H "Content-Type: application/json" \
+  -d '{"dataset_path": "data/eval/mall_faq_golden.jsonl"}' | jq '.hit_at_5, .recall_at_10, .mrr, .ndcg_at_10, .correctness, .groundedness'
+```
+
+返回字段形如：
+
+```json
+{
+  "run_id": "...",
+  "dataset_name": "mall_faq_golden",
+  "total_samples": 3,
+  "hit_at_5": 1.0,
+  "recall_at_10": 1.0,
+  "mrr": 0.833,
+  "ndcg_at_10": 0.915,
+  "correctness": 0.78,
+  "groundedness": 0.82,
+  "samples": [ ... ]
+}
+```
+
+2026-04-18 实际运行样例如下（`mall_faq_golden`，`run_id=eval-93cac3f7fbc1`）：
+
+```json
+{
+  "run_id": "eval-93cac3f7fbc1",
+  "dataset_name": "mall_faq_golden",
+  "total_samples": 4,
+  "duration_ms": 349643,
+  "hit_at_5": 1.0,
+  "recall_at_10": 1.0,
+  "mrr": 1.0,
+  "ndcg_at_10": 1.0,
+  "correctness": 0.925,
+  "groundedness": 1.0,
+  "permission_safety": 1.0,
+  "no_hit_rate": 0.0
+}
+```
+
+这组样本里，4/4 题都在 Top-1 命中了正确文档，因此检索层四项指标均为满分；`correctness=0.925` 说明回答层整体准确，但仍有个别样本存在表述偏保守或未完全贴齐参考答案的空间。
+
+每次 run 会持久化到 `eval_run` + `eval_sample` 表，可用 `GET /eval/runs` 列出历史、`GET /eval/run/{run_id}` 拉 per-sample 明细，做跨版本回归对比。
+
 ### 6.11.3 在线 eval
 
 在线 eval 用于对真实请求进行抽样分析，发现检索退化、回答失真和权限异常等问题。
