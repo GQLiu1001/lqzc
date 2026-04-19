@@ -1,3 +1,4 @@
+import type { AxiosResponse } from "axios";
 import axios from "@/utils/axios";
 import type { ApiResponse } from "@/types/interfaces";
 
@@ -41,12 +42,12 @@ export const getCustomerDetail = (id: number): Promise<ApiResponse<any>> => {
 
 // 获取客户地址列表 (Admin API)
 // 支持通过手机号或客户ID获取地址
-export const getCustomerAddresses = (phone: string): Promise<ApiResponse<CustomerAddress[]>> => {
+export const getCustomerAddresses = (phone: string): Promise<AxiosResponse<ApiResponse<CustomerAddress[]>>> => {
     return axios.get('/admin/customer/address/list', { params: { phone } });
 };
 
 // 通过客户ID获取地址列表
-export const getCustomerAddressesById = (customerId: number): Promise<ApiResponse<CustomerAddress[]>> => {
+export const getCustomerAddressesById = (customerId: number): Promise<AxiosResponse<ApiResponse<CustomerAddress[]>>> => {
     return axios.get('/admin/customer/address/list', { params: { customer_id: customerId } });
 };
 
@@ -125,7 +126,7 @@ export const createCustomer = (data: CreateCustomerRequest): Promise<ApiResponse
 };
 
 // Admin: 客户详情
-export const getAdminCustomerDetail = (id: number): Promise<ApiResponse<CustomerDetailResponse>> => {
+export const getAdminCustomerDetail = (id: number): Promise<AxiosResponse<ApiResponse<CustomerDetailResponse>>> => {
     return axios.get(`/admin/customer/detail/${id}`);
 };
 

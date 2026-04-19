@@ -1,0 +1,7 @@
+{
+  "collection": "taoai_rag_chunks",
+  "signature": "87cd9b1830fc9501558a564646da48244c5deb74",
+  "embedModel": "qwen3-embedding:8b",
+  "chunkCount": 41,
+  "updatedAt": "2026-04-18T11:50:19.703186+00:00"
+}

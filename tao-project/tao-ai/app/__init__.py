@@ -1,2 +1,0 @@
-"""agent-runtime application package."""
-

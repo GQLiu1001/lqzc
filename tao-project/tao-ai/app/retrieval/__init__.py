@@ -1,2 +1,0 @@
-"""Milvus retrieval layer."""
-

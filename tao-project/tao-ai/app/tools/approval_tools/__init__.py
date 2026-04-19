@@ -1,2 +1,0 @@
-"""Approval helpers."""
-
